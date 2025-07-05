@@ -113,6 +113,13 @@ int split_args(const char *line, char *args[], int max_args) {
     return argc;
 }
 
+void free_args(char *args[], int argc) {
+    for (int i = 0; i < argc; i++) {
+        free(args[i]);
+        args[i] = NULL;
+    }
+}
+
 void handle_redirection(char *args[], int *argc) {
     int in_fd = -1, out_fd = -1;
     for (int i = 0; i < *argc; i++) {
@@ -158,17 +165,22 @@ int exec_command(char *cmdline) {
     char *args[64];
     int argc = split_args(cmdline, args, 64);
 
-    if (args[0] == NULL) return 0;
+    if (args[0] == NULL) {
+        return 0;
+    }
 
     if (strcmp(args[0], "cd") == 0) {
         if (argc < 2) {
             fprintf(stderr, "cd: no argument\n");
+            free_args(args, argc);
             return 1;
         }
         if (chdir(args[1]) != 0) {
             perror("cd error");
+            free_args(args, argc);
             return 1;
         }
+        free_args(args, argc);
         return 0;
     }
 
@@ -181,7 +193,7 @@ int exec_command(char *cmdline) {
             }
         }
         if (!has_color && argc < 63) {
-            args[argc] = "--color=auto";
+            args[argc] = strdup("--color=auto");
             args[argc+1] = NULL;
             argc++;
         }
@@ -190,21 +202,22 @@ int exec_command(char *cmdline) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork error");
+        free_args(args, argc);
         return 1;
     }
 
     if (pid == 0) {
-
         handle_redirection(args, &argc);
-
         execvp(args[0], args);
         perror("exec error");
+        free_args(args, argc);
         exit(EXIT_FAILURE);
     } else {
         child_pid = pid;
         int status;
         waitpid(pid, &status, 0);
         child_pid = -1;
+        free_args(args, argc);
         if (WIFEXITED(status)) {
             return WEXITSTATUS(status);
         }
@@ -219,7 +232,10 @@ int execute_pipeline(char **cmds, int n) {
 
     for (int i = 0; i < n; i++) {
         if (i != n - 1) {
-            pipe(pipefd);
+            if (pipe(pipefd) < 0) {
+                perror("pipe error");
+                return 1;
+            }
         }
 
         pid_t pid = fork();
@@ -240,6 +256,7 @@ int execute_pipeline(char **cmds, int n) {
 
             execvp(args[0], args);
             perror("exec error");
+            free_args(args, argc);
             exit(EXIT_FAILURE);
         } else if (pid < 0) {
             perror("fork error");
@@ -253,77 +270,80 @@ int execute_pipeline(char **cmds, int n) {
         }
         pids[i] = pid;
     }
-    
+
     for (int i = 0; i < n; i++) {
-        waitpid(pids[i], NULL, 0);
+        int status;
+        waitpid(pids[i], &status, 0);
     }
-}    
 
-    int main() {
-        char *line;
-        signal(SIGINT, sigint_handler);
-        setenv("TERM", "xterm", 1);
-    
-        const char *history_file = ".my_shell_history";
-        char history_path[1024];
-        snprintf(history_path, sizeof(history_path), "%s/%s", getenv("HOME"), history_file);
-        linenoiseHistoryLoad(history_path);
-    
-        while (1) {
-            const char *prompt = get_prompt();
-            line = linenoise(prompt);
-            if (line == NULL) break;
-    
-            line[strcspn(line, "\n")] = 0;
-    
-            if (strcmp(line, "exit") == 0) {
-                free(line);
-                break;
-            }
-    
-            if (line[0] != '\0') {
-                linenoiseHistoryAdd(line);
-                linenoiseHistorySave(history_path);
-            }
-    
-            char *seq_cmds[16];
-            int seq_count = 0;
-            char *part = strtok(line, "&&");
-            while (part && seq_count < 16) {
-                while (*part == ' ') part++;
-                char *end = part + strlen(part) - 1;
-                while (end > part && (*end == ' ')) *end-- = '\0';
-                seq_cmds[seq_count++] = part;
-                part = strtok(NULL, "&&");
-            }
-    
-            for (int i = 0; i < seq_count; i++) {
+    return 0;
+}
 
-                char *pipe_cmds[16];
-                int pipe_count = 0;
-                char *p = strtok(seq_cmds[i], "|");
-                while (p && pipe_count < 16) {
-                    while (*p == ' ') p++;
-                    char *end = p + strlen(p) - 1;
-                    while (end > p && (*end == ' ')) *end-- = '\0';
-                    pipe_cmds[pipe_count++] = p;
-                    p = strtok(NULL, "|");
-                }
-                if (pipe_count > 1) {
-                    if (fork() == 0) {
-                        execute_pipeline(pipe_cmds, pipe_count);
-                        exit(0);
-                    } else {
-                        wait(NULL);
-                    }
-                } else {
-                    exec_command(seq_cmds[i]);
-                }
-            }
-    
+int main() {
+    char *line;
+    signal(SIGINT, sigint_handler);
+    setenv("TERM", "xterm", 1);
+
+    const char *history_file = ".my_shell_history";
+    char history_path[1024];
+    snprintf(history_path, sizeof(history_path), "%s/%s", getenv("HOME"), history_file);
+    linenoiseHistoryLoad(history_path);
+
+    while (1) {
+        const char *prompt = get_prompt();
+        line = linenoise(prompt);
+        if (line == NULL) break;
+
+        line[strcspn(line, "\n")] = 0;
+
+        if (strcmp(line, "exit") == 0) {
             free(line);
+            break;
         }
-    
-        return 0;
+
+        if (line[0] != '\0') {
+            linenoiseHistoryAdd(line);
+            linenoiseHistorySave(history_path);
+        }
+
+        char *seq_cmds[16];
+        int seq_count = 0;
+        char *part = strtok(line, "&&");
+        while (part && seq_count < 16) {
+            while (*part == ' ') part++;
+            char *end = part + strlen(part) - 1;
+            while (end > part && (*end == ' ')) *end-- = '\0';
+            seq_cmds[seq_count++] = part;
+            part = strtok(NULL, "&&");
+        }
+
+        for (int i = 0; i < seq_count; i++) {
+
+            char *pipe_cmds[16];
+            int pipe_count = 0;
+            char *p = strtok(seq_cmds[i], "|");
+            while (p && pipe_count < 16) {
+                while (*p == ' ') p++;
+                char *end = p + strlen(p) - 1;
+                while (end > p && (*end == ' ')) *end-- = '\0';
+                pipe_cmds[pipe_count++] = p;
+                p = strtok(NULL, "|");
+            }
+            if (pipe_count > 1) {
+                if (fork() == 0) {
+                    execute_pipeline(pipe_cmds, pipe_count);
+                    exit(0);
+                } else {
+                    int status;
+                    wait(&status);
+                }
+            } else {
+                exec_command(pipe_cmds[0]);
+            }
+        }
+
+        free(line);
     }
-    
+
+    return 0;
+}
