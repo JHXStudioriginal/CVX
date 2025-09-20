@@ -171,12 +171,30 @@ int exec_command(char *cmdline) {
 
     if ((strcmp(args[0], "cvx") == 0) && (argc > 1) &&
     (strcmp(args[1], "--version") == 0 || strcmp(args[1], "-version") == 0)) {
-    printf("CVX Shell beta-2\n");
+    printf("CVX Shell beta-3\n");
     printf("Copyright (C) 2025 JHX Studio's\n");
     printf("License: GNU General Public License v3.0\n");
     free_args(args, argc);
     return 0;
 }
+
+if (strcmp(args[0], "echo") == 0 && argc > 1) {
+    for (int i = 1; i < argc; i++) {
+        if (args[i][0] == '$') {
+            const char *var = getenv(args[i] + 1);
+            if (var) {
+                printf("%s", var);
+            }
+        } else {
+            printf("%s", args[i]);
+        }
+        if (i < argc - 1) printf(" ");
+    }
+    printf("\n");
+    free_args(args, argc);
+    return 0;
+}
+
 
     if (strcmp(args[0], "cd") == 0) {
         if (argc < 2) {
