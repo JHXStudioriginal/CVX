@@ -11,6 +11,7 @@ Minimalist and easy-to-extend code structure
 CVX is opensource, source code is in "src" folder
 
 INSTALLATION
+
 Method 1: Using GCC
 
 1.Go to the src folder:
