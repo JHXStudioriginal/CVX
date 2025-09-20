@@ -29,7 +29,7 @@ Method 2: Using Git + Make
 
 1.Clone the repository:
 
-git clone https://github.com/your-repo/cvx.git
+git clone https://github.com/JHXStudioriginal/CVX.git
 
 cd cvx
 
