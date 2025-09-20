@@ -169,6 +169,15 @@ int exec_command(char *cmdline) {
         return 0;
     }
 
+    if ((strcmp(args[0], "cvx") == 0) && (argc > 1) &&
+    (strcmp(args[1], "--version") == 0 || strcmp(args[1], "-version") == 0)) {
+    printf("CVX Shell beta-2\n");
+    printf("Copyright (C) 2025 JHX Studio's\n");
+    printf("License: GNU General Public License v3.0\n");
+    free_args(args, argc);
+    return 0;
+}
+
     if (strcmp(args[0], "cd") == 0) {
         if (argc < 2) {
             fprintf(stderr, "cd: no argument\n");
