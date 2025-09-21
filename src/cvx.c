@@ -311,7 +311,7 @@ int main() {
     signal(SIGINT, sigint_handler);
     setenv("TERM", "xterm", 1);
 
-    const char *history_file = ".my_shell_history";
+    const char *history_file = ".cvx_history";
     char history_path[1024];
     snprintf(history_path, sizeof(history_path), "%s/%s", getenv("HOME"), history_file);
     linenoiseHistoryLoad(history_path);
