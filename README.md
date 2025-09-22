@@ -10,23 +10,9 @@ Minimalist and easy-to-extend code structure
 
 CVX is opensource, source code is in "src" folder
 
-INSTALLATION
+INSTALLATION:
 
-Method 1: Using GCC
-
-1.Go to the src folder:
-
-cd /path/to/cvx/src
-
-2.Compile the program:
-
-gcc cvx.c linenoise.c -o cvx -Wall -Wextra -lm
-
-Run it:
-
-./cvx
-
-Method 2: Using Git + Make
+Using Git + Make
 
 1.Clone the repository:
 
