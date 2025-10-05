@@ -9,6 +9,8 @@
 #include "config.h"
 #include "signals.h"
 
+static const char *last_cmd = NULL;
+
 int split_args(const char *line, char *args[], int max_args) {
     int argc = 0;
     const char *p = line;
@@ -66,40 +68,71 @@ void free_args(char *args[], int argc) {
 
 void handle_redirection(char *args[], int *argc) {
     int in_fd = -1, out_fd = -1;
+    char heredoc_file[] = "/tmp/cvx_heredoc_XXXXXX";
+
     for (int i = 0; i < *argc; i++) {
         if (strcmp(args[i], "<") == 0 && i + 1 < *argc) {
             in_fd = open(args[i + 1], O_RDONLY);
             if (in_fd < 0) perror("open input");
-
-            free(args[i]); free(args[i+1]);
+            free(args[i]);
+            free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
-            args[*argc] = NULL;
             i--;
         } else if (strcmp(args[i], ">>") == 0 && i + 1 < *argc) {
             out_fd = open(args[i + 1], O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (out_fd < 0) perror("open append output");
-            free(args[i]); free(args[i+1]);
+            free(args[i]);
+            free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
-            args[*argc] = NULL;
             i--;
         } else if (strcmp(args[i], ">") == 0 && i + 1 < *argc) {
             out_fd = open(args[i + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (out_fd < 0) perror("open output");
-            free(args[i]); free(args[i+1]);
+            free(args[i]);
+            free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
-            args[*argc] = NULL;
+            i--;
+        } else if (strcmp(args[i], "<<") == 0 && i + 1 < *argc) {
+            int tmp_fd = mkstemp(heredoc_file);
+            if (tmp_fd < 0) {
+                perror("heredoc temp");
+                continue;
+            }
+            char *delimiter = args[i + 1];
+            printf("> enter lines, end with '%s'\n", delimiter);
+            fflush(stdout);
+
+            char *line = NULL;
+            size_t len = 0;
+            ssize_t read;
+            while ((read = getline(&line, &len, stdin)) != -1) {
+                if (strncmp(line, delimiter, strlen(delimiter)) == 0 &&
+                    (line[strlen(delimiter)] == '\n' || line[strlen(delimiter)] == '\0')) {
+                    break;
+                }
+                write(tmp_fd, line, read);
+            }
+            free(line);
+            lseek(tmp_fd, 0, SEEK_SET);
+
+            in_fd = tmp_fd;
+
+            free(args[i]);
+            free(args[i + 1]);
+            for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
+            *argc -= 2;
             i--;
         }
     }
 
-    if (in_fd > 0) {
+    if (in_fd >= 0) {
         dup2(in_fd, STDIN_FILENO);
         close(in_fd);
     }
-    if (out_fd > 0) {
+    if (out_fd >= 0) {
         dup2(out_fd, STDOUT_FILENO);
         close(out_fd);
     }
@@ -139,102 +172,108 @@ void replace_alias(char *args[], int *argc) {
     }
 }
 
-
-
-
 int exec_command(char *cmdline) {
+    if (!cmdline || !*cmdline) return 0;
+
     char *args[64];
     int argc = split_args(cmdline, args, 64);
-    replace_alias(args, &argc);    
+    replace_alias(args, &argc);
 
-    if (args[0] == NULL) {
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(args[i], "!!") == 0) {
+            if (last_cmd) {
+                free(args[i]);
+                args[i] = strdup(last_cmd);
+            } else {
+                printf("No command in history\n");
+                free_args(args, argc);
+                return 1;
+            }
+        }
+    }
+
+    linenoiseHistoryAdd(cmdline);
+    if (last_cmd) free((void*)last_cmd);
+    last_cmd = strdup(cmdline);
+
+    if (argc == 0) return 0;
+
+    if (strcmp(args[0], "cd") == 0) {
+        if (argc < 2) {
+            fprintf(stderr, "cd: no argument\n");
+            free_args(args, argc);
+            return 1;
+        }
+        char *target = args[1];
+        char resolved_path[1024];
+        if (target[0] == '~') {
+            const char *home = getenv("HOME");
+            if (!home) home = "/";
+            snprintf(resolved_path, sizeof(resolved_path), "%s%s", home, target + 1);
+            target = resolved_path;
+        }
+        if (chdir(target) != 0) {
+            perror("cd error");
+            free_args(args, argc);
+            return 1;
+        }
+        if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
+            perror("getcwd error");
+            current_dir[0] = '\0';
+        }
+        free_args(args, argc);
         return 0;
     }
 
-    if ((strcmp(args[0], "cvx") == 0) && (argc > 1) &&
-    (strcmp(args[1], "--version") == 0 || strcmp(args[1], "-version") == 0)) {
-    printf("CVX Shell beta-4\n");
-    printf("Copyright (C) 2025 JHX Studio's\n");
-    printf("License: GNU General Public License v3.0\n");
-    free_args(args, argc);
-    return 0;
-}
-
-if (strcmp(args[0], "pwd") == 0) {
-    bool physical = false;
-
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(args[i], "-P") == 0) {
-            physical = true;
-        } else if (strcmp(args[i], "-L") == 0) {
-            physical = false;
-        } else if (strcmp(args[i], "--help") == 0) {
-            printf("Usage: pwd [OPTION]...\n");
-            printf("Print the name of the current working directory.\n\n");
-            printf("Options:\n");
-            printf("  -L      print the logical current working directory (default)\n");
-            printf("  -P      print the physical current working directory (resolving symlinks)\n");
-            printf("      --help     display this help and exit\n");
-            free_args(args, argc);
-            return 0;
+    if (strcmp(args[0], "pwd") == 0) {
+        bool physical = false;
+    
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(args[i], "-P") == 0) {
+                physical = true;
+            } else if (strcmp(args[i], "-L") == 0) {
+                physical = false;
+            } else if (strcmp(args[i], "--help") == 0) {
+                printf("Usage: pwd [OPTION]...\n");
+                printf("Print the name of the current working directory.\n\n");
+                printf("Options:\n");
+                printf("  -L      print the logical current working directory (default)\n");
+                printf("  -P      print the physical current working directory (resolving symlinks)\n");
+                printf("      --help     display this help and exit\n");
+                free_args(args, argc);
+                return 0;
+            }
         }
-    }
-
-    if (physical) {
-        char real[1024];
-        if (realpath(current_dir, real)) {
-            printf("%s\n", real);
-        } else {
-            perror("pwd -P error");
-        }
-    } else {
-        printf("%s\n", current_dir);
-    }
-
-    free_args(args, argc);
-    return 0;
-}
-
-if (strcmp(args[0], "echo") == 0 && argc > 1) {
-    for (int i = 1; i < argc; i++) {
-        if (args[i][0] == '$') {
-            const char *var = getenv(args[i] + 1);
-            if (var) {
-                printf("%s", var);
+    
+        if (physical) {
+            char real[1024];
+            if (realpath(current_dir, real)) {
+                printf("%s\n", real);
+            } else {
+                perror("pwd -P error");
             }
         } else {
-            printf("%s", args[i]);
+            printf("%s\n", current_dir);
         }
-        if (i < argc - 1) printf(" ");
-    }
-    printf("\n");
-    free_args(args, argc);
-    return 0;
-}
-
-
-if (strcmp(args[0], "cd") == 0) {
-    if (argc < 2) {
-        fprintf(stderr, "cd: no argument\n");
+    
         free_args(args, argc);
-        return 1;
+        return 0;
     }
 
-    char *target = args[1];
-    if (chdir(target) != 0) {
-        perror("cd error");
+    if (strcmp(args[0], "help") == 0) {
+        printf("CVX Shell Help:\n");
+        printf("Built-in commands:\n");
+        printf("  cd [dir]       - change current directory\n");
+        printf("  pwd [-L|-P|-help]    - print current directory\n");
+        printf("  ls             - list files\n");
+        printf("  history        - show command history (~/.cvx_history)\n");
+        printf("  echo [args]    - print arguments\n");
+        printf("  cvx --version  - show shell version\n");
+        printf("  help           - show this help message\n");
+        printf("\nExternal commands can be executed as usual.\n");
         free_args(args, argc);
-        return 1;
-    }
-
-    if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
-        perror("getcwd error");
-        current_dir[0] = '\0';
-    }        
-
-    free_args(args, argc);
-    return 0;
-}
+        return 0;
+    }    
 
     if (strcmp(args[0], "ls") == 0) {
         bool has_color = false;
@@ -251,6 +290,41 @@ if (strcmp(args[0], "cd") == 0) {
         }
     }
 
+    if (strcmp(args[0], "history") == 0) {
+        const char *home = getenv("HOME");
+        if (!home) {
+            fprintf(stderr, "history: HOME environment variable not set\n");
+            free_args(args, argc);
+            return 1;
+        }
+    
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/.cvx_history", home);
+    
+        FILE *f = fopen(path, "r");
+        if (!f) {
+            perror("history: cannot open ~/.cvx_history");
+            free_args(args, argc);
+            return 1;
+        }
+    
+        char line[1024];
+        while (fgets(line, sizeof(line), f)) {
+            printf("%s", line);
+        }
+        fclose(f);
+        free_args(args, argc);
+        return 0;
+    }
+    
+
+    if ((strcmp(args[0], "cvx") == 0) && argc > 1 &&
+        (strcmp(args[1], "--version") == 0 || strcmp(args[1], "-version") == 0)) {
+        printf("CVX Shell beta-5\nCopyright (C) 2025 JHX Studio's\nLicense: GNU GPL v3.0\n");
+        free_args(args, argc);
+        return 0;
+    }
+
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork error");
@@ -259,9 +333,36 @@ if (strcmp(args[0], "cd") == 0) {
     }
 
     if (pid == 0) {
+        for (int i = 0; i < argc; i++) {
+            if (args[i][0] == '~') {
+                const char *home = getenv("HOME");
+                if (!home) home = "/";
+                char buf[1024];
+                snprintf(buf, sizeof(buf), "%s%s", home, args[i] + 1);
+                free(args[i]);
+                args[i] = strdup(buf);
+            }
+        }
+
         handle_redirection(args, &argc);
+
+        if (strcmp(args[0], "echo") == 0 && argc > 1) {
+            for (int i = 1; i < argc; i++) {
+                if (args[i][0] == '$') {
+                    const char *var = getenv(args[i] + 1);
+                    if (var) printf("%s", var);
+                } else {
+                    printf("%s", args[i]);
+                }
+                if (i < argc - 1) printf(" ");
+            }
+            printf("\n");
+            free_args(args, argc);
+            exit(0);
+        }
+
         execvp(args[0], args);
-        perror("error");
+        perror("execvp error");
         free_args(args, argc);
         exit(EXIT_FAILURE);
     } else {
@@ -270,13 +371,9 @@ if (strcmp(args[0], "cd") == 0) {
         waitpid(pid, &status, 0);
         child_pid = -1;
         free_args(args, argc);
-        if (WIFEXITED(status)) {
-            return WEXITSTATUS(status);
-        }
-        return 1;
+        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
     }
 }
-
 
 
 
@@ -284,6 +381,18 @@ int execute_pipeline(char **cmds, int n) {
     int in_fd = 0;
     int pipefd[2];
     pid_t pids[16];
+
+    for (int i = 0; i < n; i++) {
+        if (strcmp(cmds[i], "!!") == 0) {
+            if (last_cmd) {
+                free(cmds[i]);
+                cmds[i] = strdup(last_cmd);
+            } else {
+                printf("No command in history\n");
+                return 1;
+            }
+        }
+    }
 
     for (int i = 0; i < n; i++) {
         if (i != n - 1) {
@@ -298,23 +407,35 @@ int execute_pipeline(char **cmds, int n) {
             char *args[64];
             int argc = split_args(cmds[i], args, 64);
             replace_alias(args, &argc);
-        
+
+            for (int j = 0; j < argc; j++) {
+                if (args[j][0] == '~') {
+                    const char *home = getenv("HOME");
+                    if (!home) home = "/";
+                    char buf[1024];
+                    snprintf(buf, sizeof(buf), "%s%s", home, args[j] + 1);
+                    free(args[j]);
+                    args[j] = strdup(buf);
+                }
+            }
+
             if (in_fd != 0) {
                 dup2(in_fd, STDIN_FILENO);
                 close(in_fd);
             }
+
             if (i != n - 1) {
                 close(pipefd[0]);
                 dup2(pipefd[1], STDOUT_FILENO);
                 close(pipefd[1]);
             }
-        
+
             handle_redirection(args, &argc);
-        
+
             execvp(args[0], args);
-            perror("error");
+            perror("execvp error");
             free_args(args, argc);
-            exit(EXIT_FAILURE);       
+            exit(EXIT_FAILURE);
         } else if (pid < 0) {
             perror("fork error");
             return 1;
@@ -325,6 +446,7 @@ int execute_pipeline(char **cmds, int n) {
             close(pipefd[1]);
             in_fd = pipefd[0];
         }
+
         pids[i] = pid;
     }
 
