@@ -22,7 +22,7 @@ cd cvx
 
 2.Build with make:
 
-make
+sudo make install
 
 3.Run it
 
