@@ -28,5 +28,6 @@ sudo make install
 
 ./cvx
 
+---------------------------------------------------------------------------------------------------------------------------------------------
 
 CVX Shell includes [linenoise](https://github.com/antirez/linenoise) by [antirez](https://github.com/antirez), which is licensed under the BSD 2-Clause License. See relevant files for details.
