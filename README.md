@@ -16,17 +16,17 @@ Using Git + Make
 
 1.Clone the repository:
 
-git clone https://github.com/JHXStudioriginal/CVX.git
+`git clone https://github.com/JHXStudioriginal/CVX.git`
 
-cd cvx
+`cd CVX`
 
 2.Build with make:
 
-sudo make install
+`sudo make install`
 
 3.Run it
 
-./cvx
+`./cvx`
 
 ---------------------------------------------------------------------------------------------------------------------------------------------
 
