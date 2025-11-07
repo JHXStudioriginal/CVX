@@ -48,9 +48,9 @@ static void process_command_line(char *line) {
 
         if (pipe_count > 1) {
             execute_pipeline(pipe_cmds, pipe_count);
-        } else {
+        } else if (pipe_count == 1) {
             exec_command(pipe_cmds[0]);
-        }
+        }        
     }
 }
 
@@ -60,11 +60,21 @@ int main(int argc, char *argv[]) {
          strcmp(argv[1], "-v") == 0 ||
          strcmp(argv[1], "-version") == 0)) {
 
-        printf("CVX Shell beta-6\n");
+        printf("CVX Shell beta-7\n");
         printf("Copyright (C) 2025 JHX Studio's\n");
         printf("License: GNU GPL v3.0\n");
         return 0;
     }
+
+    if (argc > 1 &&
+        (strcmp(argv[1], "--help") == 0 ||
+         strcmp(argv[1], "-help") == 0 ||
+         strcmp(argv[1], "-h") == 0)) {
+    
+        process_command_line("help");
+        return 0;
+    }
+    
 
     if (argc > 2 && strcmp(argv[1], "-c") == 0) {
         char cmd[4096] = {0};
@@ -86,6 +96,23 @@ int main(int argc, char *argv[]) {
             snprintf(user_profile, sizeof(user_profile), "%s/.profile", home);
             load_profile(user_profile);
         }
+    }
+
+    if (argc > 1 && argv[1][0] != '-') {
+        FILE *f = fopen(argv[1], "r");
+        if (!f) {
+            perror("Nie mogę otworzyć pliku");
+            return 1;
+        }
+    
+        char line[4096];
+        while (fgets(line, sizeof(line), f)) {
+            line[strcspn(line, "\n")] = 0;
+            if (line[0] != '\0')
+                process_command_line(line);
+        }
+        fclose(f);
+        return 0;
     }
 
     char *line;
