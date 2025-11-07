@@ -1,16 +1,25 @@
 # CVX is a simple, lightweight shell written in C, designed to be fast, flexible, and pleasant to use.
 
 ### Features:
-* Full support for external commands, pipes, and redirections
-* Built-in commands like `cd`, `pwd` (with options), `help`, `!!`, and more
-* Command history
-* Configurable through /etc/cvx.conf:
-  - Custom prompt
-  - Aliases
-  - Startup directory
-  - History toggle
-* Supports aliases, configuration files, and customizable startup behavior
-* Simple and fast C implementation
+* Runs **normal Linux commands**, supports **pipes** (up to 16) and **redirections** (`>`, `>>`, `<`, `<<` heredoc)
+* Built-in commands:
+  - `cd` (with `~` support)
+  - `pwd` (`-L` logical, `-P` physical, `--help`)
+  - `help` (shows all built-ins)
+  - `ls` (auto `--color=auto`)
+  - `history` + `!!` (repeat last command)
+  - `echo` (supports env vars)
+  - `export [VAR=value]`
+  - `exit`
+* Command chaining with `&&`
+* Pipelines with `|`
+* Aliases & config:
+  - Custom prompt, startup dir, history toggle via `/etc/cvx.conf`
+* Arguments:
+  - `cvx --version`, `cvx -v`, `cvx -version`
+  - `cvx -c "<command>"` → run it and exit
+  - `cvx -l` → loads `/etc/profile` + `~/.profile`
+* Tiny, fast C implementation
 * Line editing powered by [linenoise](https://github.com/antirez/linenoise)
 
 ### Installation:
