@@ -11,6 +11,18 @@
 
 static const char *last_cmd = NULL;
 
+char* expand_tilde(const char *path) {
+    if (!path || path[0] != '~')
+        return strdup(path);
+
+    const char *home = getenv("HOME");
+    if (!home) home = "/";
+
+    char expanded[1024];
+    snprintf(expanded, sizeof(expanded), "%s%s", home, path + 1);
+    return strdup(expanded);
+}
+
 int split_args(const char *line, char *args[], int max_args) {
     int argc = 0;
     const char *p = line;
@@ -20,6 +32,9 @@ int split_args(const char *line, char *args[], int max_args) {
     char quote_char = '\0';
 
     while (*p) {
+        if (*p == '#' && !in_quotes) {
+            break;
+        }
         if (argc >= max_args - 1) break;
 
         if ((*p == '"' || *p == '\'') && !in_quotes) {
@@ -198,6 +213,31 @@ int exec_command(char *cmdline) {
 
     if (argc == 0) return 0;
 
+    if (strcmp(args[0], "export") == 0) {
+        if (argc < 2) {
+            printf("export: usage: export VAR=value\n");
+            free_args(args, argc);
+            return 1;
+        }
+
+        for (int i = 1; i < argc; i++) {
+            char *eq = strchr(args[i], '=');
+            if (eq) {
+                *eq = '\0';
+                const char *var = args[i];
+                const char *val = eq + 1;
+                if (setenv(var, val, 1) != 0) {
+                    perror("export");
+                }
+            } else {
+                fprintf(stderr, "export: invalid format '%s'\n", args[i]);
+            }
+        }
+
+        free_args(args, argc);
+        return 0;
+    }
+
     if (strcmp(args[0], "cd") == 0) {
         if (argc < 2) {
             fprintf(stderr, "cd: no argument\n");
@@ -227,7 +267,7 @@ int exec_command(char *cmdline) {
 
     if (strcmp(args[0], "pwd") == 0) {
         bool physical = false;
-    
+
         for (int i = 1; i < argc; i++) {
             if (strcmp(args[i], "-P") == 0) {
                 physical = true;
@@ -244,7 +284,7 @@ int exec_command(char *cmdline) {
                 return 0;
             }
         }
-    
+
         if (physical) {
             char real[1024];
             if (realpath(current_dir, real)) {
@@ -255,25 +295,29 @@ int exec_command(char *cmdline) {
         } else {
             printf("%s\n", current_dir);
         }
-    
+
         free_args(args, argc);
         return 0;
     }
 
     if (strcmp(args[0], "help") == 0) {
-        printf("CVX Shell Help:\n");
+        printf("\nCVX Shell Help:\n");
         printf("Built-in commands:\n");
         printf("  cd [dir]       - change current directory\n");
         printf("  pwd [-L|-P|-help]    - print current directory\n");
         printf("  ls             - list files\n");
         printf("  history        - show command history (~/.cvx_history)\n");
         printf("  echo [args]    - print arguments\n");
-        printf("  cvx --version  - show shell version\n");
+        printf("  export [VAR=value] - set environment variable\n");
+        printf("  !!             - repeat last command\n");
+        printf("  && and |       - command chaining and pipelines\n");
+        printf("  # [comment]      - inline comments\n");
+        printf("  cvx --version, cvx -version, cvx -v  - show shell version\n");
         printf("  help           - show this help message\n");
         printf("\nExternal commands can be executed as usual.\n");
         free_args(args, argc);
         return 0;
-    }    
+    }
 
     if (strcmp(args[0], "ls") == 0) {
         bool has_color = false;
@@ -297,30 +341,22 @@ int exec_command(char *cmdline) {
             free_args(args, argc);
             return 1;
         }
-    
+
         char path[1024];
         snprintf(path, sizeof(path), "%s/.cvx_history", home);
-    
+
         FILE *f = fopen(path, "r");
         if (!f) {
             perror("history: cannot open ~/.cvx_history");
             free_args(args, argc);
             return 1;
         }
-    
+
         char line[1024];
         while (fgets(line, sizeof(line), f)) {
             printf("%s", line);
         }
         fclose(f);
-        free_args(args, argc);
-        return 0;
-    }
-    
-
-    if ((strcmp(args[0], "cvx") == 0) && argc > 1 &&
-        (strcmp(args[1], "--version") == 0 || strcmp(args[1], "-version") == 0)) {
-        printf("CVX Shell beta-5\nCopyright (C) 2025 JHX Studio's\nLicense: GNU GPL v3.0\n");
         free_args(args, argc);
         return 0;
     }
@@ -334,14 +370,9 @@ int exec_command(char *cmdline) {
 
     if (pid == 0) {
         for (int i = 0; i < argc; i++) {
-            if (args[i][0] == '~') {
-                const char *home = getenv("HOME");
-                if (!home) home = "/";
-                char buf[1024];
-                snprintf(buf, sizeof(buf), "%s%s", home, args[i] + 1);
-                free(args[i]);
-                args[i] = strdup(buf);
-            }
+            char *tmp = expand_tilde(args[i]);
+            free(args[i]);
+            args[i] = tmp;
         }
 
         handle_redirection(args, &argc);
@@ -409,14 +440,9 @@ int execute_pipeline(char **cmds, int n) {
             replace_alias(args, &argc);
 
             for (int j = 0; j < argc; j++) {
-                if (args[j][0] == '~') {
-                    const char *home = getenv("HOME");
-                    if (!home) home = "/";
-                    char buf[1024];
-                    snprintf(buf, sizeof(buf), "%s%s", home, args[j] + 1);
-                    free(args[j]);
-                    args[j] = strdup(buf);
-                }
+                char *tmp = expand_tilde(args[j]);
+                free(args[j]);
+                args[j] = tmp;
             }
 
             if (in_fd != 0) {
