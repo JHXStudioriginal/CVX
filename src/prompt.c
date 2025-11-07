@@ -17,16 +17,16 @@ void print_prompt() {
     home[sizeof(home)-1] = '\0';
 
     if (strncmp(current_dir, home, strlen(home)) == 0) {
-        printf("\033[1;32m%s@%s\033[0m:\033[1;34m~%s\033[0m$ ",
-               username, hostname, current_dir + strlen(home));
+
+        printf("%s@%s:~%s$ ", username, hostname, current_dir + strlen(home));
     } else {
-        printf("\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ",
-               username, hostname, current_dir);
+        printf("%s@%s:%s$ ", username, hostname, current_dir);
     }
 }
 
 const char* get_prompt(void) {
     static char prompt[2048];
+
     if (strcmp(cvx_prompt, "DEFAULT_PROMPT") == 0) {
         char home[1024], hostname[256];
         struct passwd *pw = getpwuid(getuid());
@@ -40,6 +40,7 @@ const char* get_prompt(void) {
         else
             snprintf(prompt, sizeof(prompt), "%s@%s:%s$ ", username, hostname, current_dir);
     } else {
+
         char buf[2048];
         strncpy(buf, cvx_prompt, sizeof(buf)-1);
         buf[sizeof(buf)-1] = '\0';
@@ -66,5 +67,6 @@ const char* get_prompt(void) {
         }
         snprintf(prompt, sizeof(prompt), "%.*s$ ", (int)(sizeof(prompt)-3), tmp);
     }
+
     return prompt;
 }
