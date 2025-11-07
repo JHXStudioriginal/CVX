@@ -15,6 +15,20 @@ bool history_enabled = true;
 char start_dir[1024] = "";
 
 void config() {
+    strncpy(cvx_prompt, "DEFAULT_PROMPT", sizeof(cvx_prompt)-1);
+    cvx_prompt[sizeof(cvx_prompt)-1] = '\0';
+
+    if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
+        perror("getcwd error");
+        current_dir[0] = '\0';
+    }
+
+    strncpy(start_dir, current_dir, sizeof(start_dir)-1);
+    start_dir[sizeof(start_dir)-1] = '\0';
+
+    history_enabled = true;
+    alias_count = 0;
+
     FILE *f = fopen("/etc/cvx.conf", "r");
     if (!f) return;
 
