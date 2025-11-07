@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include "exec.h"
+#include "commands.h"
 #include "config.h"
 #include "signals.h"
 
@@ -213,153 +214,13 @@ int exec_command(char *cmdline) {
 
     if (argc == 0) return 0;
 
-    if (strcmp(args[0], "export") == 0) {
-        if (argc < 2) {
-            printf("export: usage: export VAR=value\n");
-            free_args(args, argc);
-            return 1;
-        }
-
-        for (int i = 1; i < argc; i++) {
-            char *eq = strchr(args[i], '=');
-            if (eq) {
-                *eq = '\0';
-                const char *var = args[i];
-                const char *val = eq + 1;
-                if (setenv(var, val, 1) != 0) {
-                    perror("export");
-                }
-            } else {
-                fprintf(stderr, "export: invalid format '%s'\n", args[i]);
-            }
-        }
-
-        free_args(args, argc);
-        return 0;
-    }
-
-    if (strcmp(args[0], "cd") == 0) {
-        if (argc < 2) {
-            fprintf(stderr, "cd: no argument\n");
-            free_args(args, argc);
-            return 1;
-        }
-        char *target = args[1];
-        char resolved_path[1024];
-        if (target[0] == '~') {
-            const char *home = getenv("HOME");
-            if (!home) home = "/";
-            snprintf(resolved_path, sizeof(resolved_path), "%s%s", home, target + 1);
-            target = resolved_path;
-        }
-        if (chdir(target) != 0) {
-            perror("cd error");
-            free_args(args, argc);
-            return 1;
-        }
-        if (getcwd(current_dir, sizeof(current_dir)) == NULL) {
-            perror("getcwd error");
-            current_dir[0] = '\0';
-        }
-        free_args(args, argc);
-        return 0;
-    }
-
-    if (strcmp(args[0], "pwd") == 0) {
-        bool physical = false;
-
-        for (int i = 1; i < argc; i++) {
-            if (strcmp(args[i], "-P") == 0) {
-                physical = true;
-            } else if (strcmp(args[i], "-L") == 0) {
-                physical = false;
-            } else if (strcmp(args[i], "--help") == 0) {
-                printf("Usage: pwd [OPTION]...\n");
-                printf("Print the name of the current working directory.\n\n");
-                printf("Options:\n");
-                printf("  -L      print the logical current working directory (default)\n");
-                printf("  -P      print the physical current working directory (resolving symlinks)\n");
-                printf("      --help     display this help and exit\n");
-                free_args(args, argc);
-                return 0;
-            }
-        }
-
-        if (physical) {
-            char real[1024];
-            if (realpath(current_dir, real)) {
-                printf("%s\n", real);
-            } else {
-                perror("pwd -P error");
-            }
-        } else {
-            printf("%s\n", current_dir);
-        }
-
-        free_args(args, argc);
-        return 0;
-    }
-
-    if (strcmp(args[0], "help") == 0) {
-        printf("\nCVX Shell Help:\n");
-        printf("Built-in commands:\n");
-        printf("  cd [dir]       - change current directory\n");
-        printf("  pwd [-L|-P|-help]    - print current directory\n");
-        printf("  ls             - list files\n");
-        printf("  history        - show command history (~/.cvx_history)\n");
-        printf("  echo [args]    - print arguments\n");
-        printf("  export [VAR=value] - set environment variable\n");
-        printf("  !!             - repeat last command\n");
-        printf("  && and |       - command chaining and pipelines\n");
-        printf("  # [comment]      - inline comments\n");
-        printf("  cvx --version, cvx -version, cvx -v  - show shell version\n");
-        printf("  help           - show this help message\n");
-        printf("\nExternal commands can be executed as usual.\n");
-        free_args(args, argc);
-        return 0;
-    }
-
-    if (strcmp(args[0], "ls") == 0) {
-        bool has_color = false;
-        for (int i = 1; i < argc; i++) {
-            if (strcmp(args[i], "--color=auto") == 0) {
-                has_color = true;
-                break;
-            }
-        }
-        if (!has_color && argc < 63) {
-            args[argc] = strdup("--color=auto");
-            args[argc+1] = NULL;
-            argc++;
-        }
-    }
-
-    if (strcmp(args[0], "history") == 0) {
-        const char *home = getenv("HOME");
-        if (!home) {
-            fprintf(stderr, "history: HOME environment variable not set\n");
-            free_args(args, argc);
-            return 1;
-        }
-
-        char path[1024];
-        snprintf(path, sizeof(path), "%s/.cvx_history", home);
-
-        FILE *f = fopen(path, "r");
-        if (!f) {
-            perror("history: cannot open ~/.cvx_history");
-            free_args(args, argc);
-            return 1;
-        }
-
-        char line[1024];
-        while (fgets(line, sizeof(line), f)) {
-            printf("%s", line);
-        }
-        fclose(f);
-        free_args(args, argc);
-        return 0;
-    }
+    if (strcmp(args[0], "cd") == 0) return cmd_cd(argc, args);
+    if (strcmp(args[0], "pwd") == 0) return cmd_pwd(argc, args);
+    if (strcmp(args[0], "export") == 0) return cmd_export(argc, args);
+    if (strcmp(args[0], "help") == 0) return cmd_help(argc, args);
+    if (strcmp(args[0], "ls") == 0) return cmd_ls(argc, args);
+    if (strcmp(args[0], "history") == 0) return cmd_history(argc, args);
+    if (strcmp(args[0], "echo") == 0) return cmd_echo(argc, args);
 
     pid_t pid = fork();
     if (pid < 0) {
@@ -377,30 +238,13 @@ int exec_command(char *cmdline) {
 
         handle_redirection(args, &argc);
 
-        if (strcmp(args[0], "echo") == 0 && argc > 1) {
-            for (int i = 1; i < argc; i++) {
-                if (args[i][0] == '$') {
-                    const char *var = getenv(args[i] + 1);
-                    if (var) printf("%s", var);
-                } else {
-                    printf("%s", args[i]);
-                }
-                if (i < argc - 1) printf(" ");
-            }
-            printf("\n");
-            free_args(args, argc);
-            exit(0);
-        }
-
         execvp(args[0], args);
-        perror("execvp error");
+        perror("exec error");
         free_args(args, argc);
         exit(EXIT_FAILURE);
     } else {
-        child_pid = pid;
         int status;
         waitpid(pid, &status, 0);
-        child_pid = -1;
         free_args(args, argc);
         return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
     }
@@ -458,8 +302,16 @@ int execute_pipeline(char **cmds, int n) {
 
             handle_redirection(args, &argc);
 
+            if (strcmp(args[0], "cd") == 0) exit(cmd_cd(argc, args));
+            if (strcmp(args[0], "pwd") == 0) exit(cmd_pwd(argc, args));
+            if (strcmp(args[0], "export") == 0) exit(cmd_export(argc, args));
+            if (strcmp(args[0], "help") == 0) exit(cmd_help(argc, args));
+            if (strcmp(args[0], "ls") == 0) exit(cmd_ls(argc, args));
+            if (strcmp(args[0], "history") == 0) exit(cmd_history(argc, args));
+            if (strcmp(args[0], "echo") == 0) exit(cmd_echo(argc, args));
+
             execvp(args[0], args);
-            perror("execvp error");
+            perror("exec error");
             free_args(args, argc);
             exit(EXIT_FAILURE);
         } else if (pid < 0) {
