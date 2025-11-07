@@ -19,7 +19,7 @@ Using Git + Make
 
 1. Clone the repository:
 
-`git clone https://github.com/JHXStudioriginal/CVX.git`
+`git clone https://github.com/JHXStudioriginal/CVX-Shell.git`
 
 `cd CVX`
 
