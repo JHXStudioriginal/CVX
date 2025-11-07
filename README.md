@@ -21,7 +21,7 @@ Using Git + Make
 
 `git clone https://github.com/JHXStudioriginal/CVX-Shell.git`
 
-`cd CVX`
+`cd CVX-Shell`
 
 2. Build with make:
 
