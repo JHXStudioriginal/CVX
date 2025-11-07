@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1 && argv[1][0] != '-') {
         FILE *f = fopen(argv[1], "r");
         if (!f) {
-            perror("Nie mogę otworzyć pliku");
+            perror("Cannot open file.");
             return 1;
         }
     
