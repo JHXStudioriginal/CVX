@@ -24,6 +24,41 @@ char* expand_tilde(const char *path) {
     return strdup(expanded);
 }
 
+char* unescape_string(const char *s) {
+    if (!s) return NULL;
+    char *buf = malloc(strlen(s) + 1);
+    if (!buf) return NULL;
+    int j = 0;
+    for (int i = 0; s[i]; i++) {
+        if (s[i] == '\\' && s[i+1]) {
+            i++;
+            switch (s[i]) {
+                case 'n': buf[j++] = '\n'; break;
+                case 't': buf[j++] = '\t'; break;
+                case 'r': buf[j++] = '\r'; break;
+                case 'a': buf[j++] = '\a'; break;
+                case 'v': buf[j++] = '\v'; break;
+                case '\\': buf[j++] = '\\'; break;
+                case '"': buf[j++] = '"'; break;
+                case '\'': buf[j++] = '\''; break;
+                case '$': buf[j++] = '$'; break;
+                case 'x': {
+                    int val = 0, count = 0;
+                    for (int k = 0; k < 2 && isxdigit((unsigned char)s[i+1]); k++, i++)
+                        val = val*16 + (isdigit(s[i+1]) ? s[i+1]-'0' : (tolower(s[i+1])-'a'+10));
+                    buf[j++] = (char)val;
+                    break;
+                }
+                default: buf[j++] = s[i]; break;
+            }
+        } else {
+            buf[j++] = s[i];
+        }
+    }
+    buf[j] = '\0';
+    return buf;
+}
+
 int split_args(const char *line, char *args[], int max_args) {
     int argc = 0;
     const char *p = line;
@@ -188,6 +223,14 @@ void replace_alias(char *args[], int *argc) {
     }
 }
 
+static void unescape_args(char *args[], int argc) {
+    for (int i = 0; i < argc; i++) {
+        char *tmp = unescape_string(args[i]);
+        free(args[i]);
+        args[i] = tmp;
+    }
+}
+
 int exec_command(char *cmdline) {
     if (!cmdline || !*cmdline) return 0;
 
@@ -195,16 +238,12 @@ int exec_command(char *cmdline) {
     int argc = split_args(cmdline, args, 64);
     replace_alias(args, &argc);
 
+    unescape_args(args, argc);
+
     for (int i = 0; i < argc; i++) {
         if (strcmp(args[i], "!!") == 0) {
-            if (last_cmd) {
-                free(args[i]);
-                args[i] = strdup(last_cmd);
-            } else {
-                printf("No command in history\n");
-                free_args(args, argc);
-                return 1;
-            }
+            if (last_cmd) { free(args[i]); args[i] = strdup(last_cmd); }
+            else { printf("No command in history\n"); free_args(args, argc); return 1; }
         }
     }
 
@@ -223,11 +262,7 @@ int exec_command(char *cmdline) {
     if (strcmp(args[0], "echo") == 0) return cmd_echo(argc, args);
 
     pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork error");
-        free_args(args, argc);
-        return 1;
-    }
+    if (pid < 0) { perror("fork error"); free_args(args, argc); return 1; }
 
     if (pid == 0) {
         for (int i = 0; i < argc; i++) {
@@ -237,7 +272,6 @@ int exec_command(char *cmdline) {
         }
 
         handle_redirection(args, &argc);
-
         execvp(args[0], args);
         perror("exec error");
         free_args(args, argc);
@@ -250,8 +284,6 @@ int exec_command(char *cmdline) {
     }
 }
 
-
-
 int execute_pipeline(char **cmds, int n) {
     int in_fd = 0;
     int pipefd[2];
@@ -259,23 +291,13 @@ int execute_pipeline(char **cmds, int n) {
 
     for (int i = 0; i < n; i++) {
         if (strcmp(cmds[i], "!!") == 0) {
-            if (last_cmd) {
-                free(cmds[i]);
-                cmds[i] = strdup(last_cmd);
-            } else {
-                printf("No command in history\n");
-                return 1;
-            }
+            if (last_cmd) { free(cmds[i]); cmds[i] = strdup(last_cmd); }
+            else { printf("No command in history\n"); return 1; }
         }
     }
 
     for (int i = 0; i < n; i++) {
-        if (i != n - 1) {
-            if (pipe(pipefd) < 0) {
-                perror("pipe error");
-                return 1;
-            }
-        }
+        if (i != n - 1 && pipe(pipefd) < 0) { perror("pipe error"); return 1; }
 
         pid_t pid = fork();
         if (pid == 0) {
@@ -283,22 +305,16 @@ int execute_pipeline(char **cmds, int n) {
             int argc = split_args(cmds[i], args, 64);
             replace_alias(args, &argc);
 
+            unescape_args(args, argc);
+
             for (int j = 0; j < argc; j++) {
                 char *tmp = expand_tilde(args[j]);
                 free(args[j]);
                 args[j] = tmp;
             }
 
-            if (in_fd != 0) {
-                dup2(in_fd, STDIN_FILENO);
-                close(in_fd);
-            }
-
-            if (i != n - 1) {
-                close(pipefd[0]);
-                dup2(pipefd[1], STDOUT_FILENO);
-                close(pipefd[1]);
-            }
+            if (in_fd != 0) { dup2(in_fd, STDIN_FILENO); close(in_fd); }
+            if (i != n - 1) { close(pipefd[0]); dup2(pipefd[1], STDOUT_FILENO); close(pipefd[1]); }
 
             handle_redirection(args, &argc);
 
@@ -314,17 +330,10 @@ int execute_pipeline(char **cmds, int n) {
             perror("exec error");
             free_args(args, argc);
             exit(EXIT_FAILURE);
-        } else if (pid < 0) {
-            perror("fork error");
-            return 1;
-        }
+        } else if (pid < 0) { perror("fork error"); return 1; }
 
         if (in_fd != 0) close(in_fd);
-        if (i != n - 1) {
-            close(pipefd[1]);
-            in_fd = pipefd[0];
-        }
-
+        if (i != n - 1) { close(pipefd[1]); in_fd = pipefd[0]; }
         pids[i] = pid;
     }
 
