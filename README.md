@@ -1,7 +1,7 @@
 # CVX is a simple, lightweight shell written in C, designed to be fast, flexible, and pleasant to use.
 
 ### Features:
-* Runs **normal Linux commands**, supports **pipes** (up to 16) and **redirections** (`>`, `>>`, `<`, `<<` heredoc)
+* Runs **normal Linux commands**, supports **pipes** and **redirections** (`>`, `>>`, `<`, `<<` heredoc)
 * Built-in commands:
   - `cd` (with `~` support)
   - `pwd` (`-L` logical, `-P` physical, `--help`)
