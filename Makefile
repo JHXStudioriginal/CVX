@@ -18,6 +18,7 @@ $(OBJ_DIR):
 
 $(OUT): $(OBJ)
 	$(CC) $(OBJ) -o $(OUT) $(LDFLAGS)
+	rm -rf $(OBJ_DIR)
 
 $(OBJ_DIR)/%.o: src/%.c | $(OBJ_DIR)
 	$(CC) -c $< -o $@ $(CFLAGS)
@@ -27,11 +28,13 @@ clean:
 
 install: all
 	sudo cp $(OUT) /usr/local/bin/$(OUT)
+	sudo rm -rf obj
 	sudo chmod +x /usr/local/bin/$(OUT)
 	sudo sh -c 'if [ ! -f /etc/cvx.conf ]; then \
 		echo "PROMPT=default" > /etc/cvx.conf; \
 		echo "HISTORY=true" >> /etc/cvx.conf; \
 	fi'
+
 
 uninstall:
 	sudo rm -f /usr/local/bin/$(OUT) /etc/cvx.conf
