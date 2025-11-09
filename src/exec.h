@@ -2,8 +2,7 @@
 // All rights reserved. This file is distributed under the Elasna Ownership License 1.0.
 // Preserve author information and file headers. Do not claim ownership of the code.
 // Do not sell this software or any derivative work without explicit permission.
-// Full license: [https://github.com/JHXStudioriginal/CVX-Shell/blob/main/LICENSE]
-
+// Full license: [https://github.com/JHXStudioriginal/Elasna-Ownership-License/blob/main/LICENSE]
 
 #ifndef EXEC_H
 #define EXEC_H
