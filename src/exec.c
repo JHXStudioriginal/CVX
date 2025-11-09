@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -43,7 +44,7 @@ char* unescape_string(const char *s) {
                 case '\'': buf[j++] = '\''; break;
                 case '$': buf[j++] = '$'; break;
                 case 'x': {
-                    int val = 0, count = 0;
+                    int val = 0;
                     for (int k = 0; k < 2 && isxdigit((unsigned char)s[i+1]); k++, i++)
                         val = val*16 + (isdigit(s[i+1]) ? s[i+1]-'0' : (tolower(s[i+1])-'a'+10));
                     buf[j++] = (char)val;
