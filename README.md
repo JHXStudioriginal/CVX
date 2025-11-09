@@ -22,7 +22,7 @@
 * Tiny, fast C implementation
 * Line editing powered by [linenoise](https://github.com/antirez/linenoise)
 
-###### See wiki on project page to read more.
+###### See [wiki](https://github.com/JHXStudioriginal/CVX-Shell/wiki) on project page to read more.
 
 ### Installation:
 
