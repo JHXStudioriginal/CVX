@@ -224,6 +224,44 @@ void replace_alias(char *args[], int *argc) {
     }
 }
 
+char* expand_variables(const char *input) {
+    if (!input) return NULL;
+    char buffer[4096];
+    int j = 0;
+
+    for (int i = 0; input[i]; i++) {
+        if (input[i] == '$') {
+            i++;
+            if (input[i] == '{') {
+                i++;
+                char varname[128];
+                int k = 0;
+                while (input[i] && input[i] != '}' && k < 127) varname[k++] = input[i++];
+                varname[k] = '\0';
+                if (input[i] == '}') i++;
+                char *val = getenv(varname);
+                if (val) {
+                    for (int l = 0; val[l]; l++) buffer[j++] = val[l];
+                }
+            } else {
+                char varname[128];
+                int k = 0;
+                while ((isalnum(input[i]) || input[i]=='_') && k < 127) varname[k++] = input[i++];
+                varname[k] = '\0';
+                i--;
+                char *val = getenv(varname);
+                if (val) {
+                    for (int l = 0; val[l]; l++) buffer[j++] = val[l];
+                }
+            }
+        } else {
+            buffer[j++] = input[i];
+        }
+    }
+    buffer[j] = '\0';
+    return strdup(buffer);
+}
+
 static void unescape_args(char *args[], int argc) {
     for (int i = 0; i < argc; i++) {
         char *tmp = unescape_string(args[i]);
@@ -239,6 +277,12 @@ int exec_command(char *cmdline) {
     int argc = split_args(cmdline, args, 64);
     replace_alias(args, &argc);
     unescape_args(args, argc);
+
+    for (int i = 0; i < argc; i++) {
+        char *tmp2 = expand_variables(args[i]);
+        free(args[i]);
+        args[i] = tmp2;
+    }
 
     for (int i = 0; i < argc; i++) {
         if (strcmp(args[i], "!!") == 0) {
@@ -324,6 +368,12 @@ int execute_pipeline(char **cmds, int n) {
             replace_alias(args, &argc);
 
             unescape_args(args, argc);
+
+            for (int j = 0; j < argc; j++) {
+                char *tmp2 = expand_variables(args[j]);
+                free(args[j]);
+                args[j] = tmp2;
+            }
 
             for (int j = 0; j < argc; j++) {
                 char *tmp = expand_tilde(args[j]);
