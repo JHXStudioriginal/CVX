@@ -237,7 +237,6 @@ int exec_command(char *cmdline) {
     char *args[64];
     int argc = split_args(cmdline, args, 64);
     replace_alias(args, &argc);
-
     unescape_args(args, argc);
 
     for (int i = 0; i < argc; i++) {
@@ -251,15 +250,24 @@ int exec_command(char *cmdline) {
     if (last_cmd) free((void*)last_cmd);
     last_cmd = strdup(cmdline);
 
-    if (argc == 0) return 0;
+    bool has_redirect = false;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(args[i], ">") == 0 || strcmp(args[i], ">>") == 0 || strcmp(args[i], "<") == 0 || strcmp(args[i], "<<") == 0) {
+            has_redirect = true;
+            break;
+        }
+    }
 
-    if (strcmp(args[0], "cd") == 0) return cmd_cd(argc, args);
-    if (strcmp(args[0], "pwd") == 0) return cmd_pwd(argc, args);
-    if (strcmp(args[0], "export") == 0) return cmd_export(argc, args);
-    if (strcmp(args[0], "help") == 0) return cmd_help(argc, args);
-    if (strcmp(args[0], "ls") == 0) return cmd_ls(argc, args);
-    if (strcmp(args[0], "history") == 0) return cmd_history(argc, args);
-    if (strcmp(args[0], "echo") == 0) return cmd_echo(argc, args);
+
+    if (!has_redirect) {
+        if (strcmp(args[0], "cd") == 0) return cmd_cd(argc, args);
+        if (strcmp(args[0], "pwd") == 0) return cmd_pwd(argc, args);
+        if (strcmp(args[0], "export") == 0) return cmd_export(argc, args);
+        if (strcmp(args[0], "help") == 0) return cmd_help(argc, args);
+        if (strcmp(args[0], "ls") == 0) return cmd_ls(argc, args);
+        if (strcmp(args[0], "history") == 0) return cmd_history(argc, args);
+        if (strcmp(args[0], "echo") == 0) return cmd_echo(argc, args);
+    }
 
     pid_t pid = fork();
     if (pid < 0) { perror("fork error"); free_args(args, argc); return 1; }
@@ -272,6 +280,15 @@ int exec_command(char *cmdline) {
         }
 
         handle_redirection(args, &argc);
+
+        if (strcmp(args[0], "cd") == 0) exit(cmd_cd(argc, args));
+        if (strcmp(args[0], "pwd") == 0) exit(cmd_pwd(argc, args));
+        if (strcmp(args[0], "export") == 0) exit(cmd_export(argc, args));
+        if (strcmp(args[0], "help") == 0) exit(cmd_help(argc, args));
+        if (strcmp(args[0], "ls") == 0) exit(cmd_ls(argc, args));
+        if (strcmp(args[0], "history") == 0) exit(cmd_history(argc, args));
+        if (strcmp(args[0], "echo") == 0) exit(cmd_echo(argc, args));
+
         execvp(args[0], args);
         perror("exec error");
         free_args(args, argc);
