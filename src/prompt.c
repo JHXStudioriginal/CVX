@@ -51,7 +51,7 @@ static void expand_escapes(const char *src, char *dest, size_t dest_size) {
 const char* get_prompt(void) {
     static char prompt[2048];
 
-    if (!cvx_prompt || strcmp(cvx_prompt, "DEFAULT_PROMPT") == 0 || cvx_prompt[0] == '\0') {
+    if (strcmp(cvx_prompt, "DEFAULT_PROMPT") == 0 || cvx_prompt[0] == '\0') {
         char home[1024], hostname[256];
         struct passwd *pw = getpwuid(getuid());
         const char *username = pw ? pw->pw_name : "unknown";
@@ -59,13 +59,13 @@ const char* get_prompt(void) {
         strncpy(home, getenv("HOME") ? getenv("HOME") : "", sizeof(home));
         home[sizeof(home)-1] = '\0';
 
-        if (strncmp(current_dir, home, strlen(home)) == 0)
-            snprintf(prompt, sizeof(prompt), "%s@%s:~%s$ ", username, hostname, current_dir + strlen(home));
-        else
-            snprintf(prompt, sizeof(prompt), "%s@%s:%s$ ", username, hostname, current_dir);
-
-        return prompt;
-    }
+        if (strncmp(current_dir, home, strlen(home)) == 0) {
+            snprintf(prompt, sizeof(prompt), "%s@%s:~%s|> ", username, hostname, current_dir + strlen(home));
+        } else {
+            snprintf(prompt, sizeof(prompt), "%s@%s:%s|> ", username, hostname, current_dir);
+        }
+        return prompt;     
+    }   
 
     char tmp[2048];
     char buf[2048] = "";
@@ -120,7 +120,7 @@ const char* get_prompt(void) {
     }
 
     expand_escapes(buf, expanded, sizeof(expanded));
-    snprintf(prompt, sizeof(prompt), "%s$ ", expanded);
+    snprintf(prompt, sizeof(prompt), "%s", expanded);
     
     return prompt;
 }
