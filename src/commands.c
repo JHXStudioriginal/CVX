@@ -58,6 +58,7 @@ int cmd_echo(int argc, char **argv) {
 int cmd_cd(int argc, char **argv) {
     char *target;
     char cwd[1024];
+    char path[1024];
 
     if (getcwd(cwd, sizeof(cwd)) == NULL) cwd[0] = '\0';
 
@@ -68,6 +69,16 @@ int cmd_cd(int argc, char **argv) {
         target = previous_dir[0] ? previous_dir : getenv("HOME");
         if (!target) target = "/";
         printf("%s\n", target);
+    } else if (argv[1][0] == '~') {
+        char *home = getenv("HOME");
+        if (!home) home = "/";
+        if (argv[1][1] == '/' || argv[1][1] == '\0') {
+            snprintf(path, sizeof(path), "%s%s", home, argv[1] + 1);
+            target = path;
+        } else {
+            fprintf(stderr, "cd: unsupported format: %s\n", argv[1]);
+            return 1;
+        }
     } else {
         target = argv[1];
     }
