@@ -1,8 +1,7 @@
-// Copyright (c) [2025] [JHXStudioriginal]
-// All rights reserved. This file is distributed under the Elasna Ownership License 1.0.
-// Preserve author information and file headers. Do not claim ownership of the code.
-// Do not sell this software or any derivative work without explicit permission.
-// Full license: [https://github.com/JHXStudioriginal/Elasna-Ownership-License/blob/main/LICENSE]
+// Copyright (c) 2025 JHXStudioriginal
+// This file is part of the Elasna Open Source License v2.
+// All original author information and file headers must be preserved.
+// For full license text, see: [https://github.com/JHXStudioriginal/Elasna-Ownership-License/blob/main/LICENSE]
 
 
 #include <signal.h>
