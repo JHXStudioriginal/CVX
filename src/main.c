@@ -67,9 +67,9 @@ int main(int argc, char *argv[]) {
          strcmp(argv[1], "-v") == 0 ||
          strcmp(argv[1], "-version") == 0)) {
 
-        printf("CVX Shell beta-8\n");
+        printf("CVX Shell beta-8.2\n");
         printf("Copyright (C) 2025 JHX Studio's\n");
-        printf("License: GNU GPL v3.0\n");
+        printf("License: Elasna Ownership License v1\n");
         return 0;
     }
 
