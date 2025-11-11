@@ -24,16 +24,25 @@ static void load_profile(const char *path) {
     }
 }
 
-static void process_command_line(char *line) {
+void process_command_line(char *line) {
+    if (!line) return;
+
+    char *comment = strchr(line, '#');
+    if (comment) *comment = '\0';
+
+    while (*line == ' ') line++;
+    char *end = line + strlen(line) - 1;
+    while (end > line && (*end == ' ' || *end == '\n')) *end-- = '\0';
+    if (*line == '\0') return;
+
     char *seq_cmds[16];
     int seq_count = 0;
     char *saveptr1;
-
     char *part = strtok_r(line, "&&", &saveptr1);
     while (part && seq_count < 16) {
         while (*part == ' ') part++;
-        char *end = part + strlen(part) - 1;
-        while (end > part && *end == ' ') *end-- = '\0';
+        char *end2 = part + strlen(part) - 1;
+        while (end2 > part && *end2 == ' ') *end2-- = '\0';
         seq_cmds[seq_count++] = part;
         part = strtok_r(NULL, "&&", &saveptr1);
     }
@@ -42,12 +51,11 @@ static void process_command_line(char *line) {
         char *pipe_cmds[16];
         int pipe_count = 0;
         char *saveptr2;
-
         char *p = strtok_r(seq_cmds[i], "|", &saveptr2);
         while (p && pipe_count < 16) {
             while (*p == ' ') p++;
-            char *end = p + strlen(p) - 1;
-            while (end > p && *end == ' ') *end-- = '\0';
+            char *end3 = p + strlen(p) - 1;
+            while (end3 > p && (*end3 == ' ' || *end3 == '\n')) *end3-- = '\0';
             pipe_cmds[pipe_count++] = p;
             p = strtok_r(NULL, "|", &saveptr2);
         }
@@ -56,7 +64,7 @@ static void process_command_line(char *line) {
             execute_pipeline(pipe_cmds, pipe_count);
         } else if (pipe_count == 1) {
             exec_command(pipe_cmds[0]);
-        }        
+        }
     }
 }
 
@@ -66,9 +74,9 @@ int main(int argc, char *argv[]) {
          strcmp(argv[1], "-v") == 0 ||
          strcmp(argv[1], "-version") == 0)) {
 
-        printf("CVX Shell beta-8.2\n");
+        printf("CVX Shell beta-8.3\n");
         printf("Copyright (C) 2025 JHX Studio's\n");
-        printf("License: Elasna Ownership License v1\n");
+        printf("License: Elasna Open Source License v2\n");
         return 0;
     }
 
