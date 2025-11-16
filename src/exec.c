@@ -75,10 +75,32 @@ int split_args(const char *line, char *args[], int max_args) {
     char quote_char = '\0';
 
     while (*p) {
-        if (*p == '#' && !in_quotes) {
-            break;
-        }
+        if (*p == '#' && !in_quotes) break;
         if (argc >= max_args - 1) break;
+
+        if ((*p == '<' && p[1] == '<') || (*p == '>' && p[1] == '>')) {
+            if (buf_i > 0) {
+                buffer[buf_i] = '\0';
+                args[argc++] = strdup(buffer);
+                buf_i = 0;
+            }
+            char tmp[3] = { *p, *(p+1), '\0' };
+            args[argc++] = strdup(tmp);
+            p += 2;
+            continue;
+        }
+
+        if (*p == '<' || *p == '>') {
+            if (buf_i > 0) {
+                buffer[buf_i] = '\0';
+                args[argc++] = strdup(buffer);
+                buf_i = 0;
+            }
+            char tmp[2] = { *p, '\0' };
+            args[argc++] = strdup(tmp);
+            p++;
+            continue;
+        }
 
         if ((*p == '"' || *p == '\'') && !in_quotes) {
             in_quotes = true;
@@ -86,7 +108,6 @@ int split_args(const char *line, char *args[], int max_args) {
             p++;
             continue;
         }
-
         if (*p == quote_char && in_quotes) {
             in_quotes = false;
             quote_char = '\0';
@@ -130,71 +151,100 @@ void handle_redirection(char *args[], int *argc) {
 
     for (int i = 0; i < *argc; i++) {
         if (strcmp(args[i], "<") == 0 && i + 1 < *argc) {
+
             in_fd = open(args[i + 1], O_RDONLY);
             if (in_fd < 0) perror("open input");
+
             free(args[i]);
             free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
             i--;
+
         } else if (strcmp(args[i], ">>") == 0 && i + 1 < *argc) {
+
             out_fd = open(args[i + 1], O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (out_fd < 0) perror("open append output");
+
             free(args[i]);
             free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
             i--;
+
         } else if (strcmp(args[i], ">") == 0 && i + 1 < *argc) {
+
             out_fd = open(args[i + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (out_fd < 0) perror("open output");
+
             free(args[i]);
             free(args[i + 1]);
             for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
             *argc -= 2;
             i--;
+
         } else if (strcmp(args[i], "<<") == 0 && i + 1 < *argc) {
+
             int tmp_fd = mkstemp(heredoc_file);
             if (tmp_fd < 0) {
                 perror("heredoc temp");
                 continue;
             }
+
             char *delimiter = args[i + 1];
             printf("> enter lines, end with '%s'\n", delimiter);
             fflush(stdout);
 
-            char *line = NULL;
-            size_t len = 0;
-            ssize_t read;
-            while ((read = getline(&line, &len, stdin)) != -1) {
-                if (strncmp(line, delimiter, strlen(delimiter)) == 0 &&
-                    (line[strlen(delimiter)] == '\n' || line[strlen(delimiter)] == '\0')) {
+            while (1) {
+                char buf[1024];
+                printf("> ");
+                fflush(stdout);
+
+                if (!fgets(buf, sizeof(buf), stdin))
+                break;
+
+                buf[strcspn(buf, "\n")] = 0;
+                char *line = strdup(buf);
+
+
+                if (!line) break;
+
+                if (strcmp(line, delimiter) == 0) {
+                    free(line);
                     break;
                 }
-                write(tmp_fd, line, read);
+
+                write(tmp_fd, line, strlen(line));
+                write(tmp_fd, "\n", 1);
+
+                free(line);
             }
-            free(line);
+
             lseek(tmp_fd, 0, SEEK_SET);
 
             in_fd = tmp_fd;
+            unlink(heredoc_file);
 
             free(args[i]);
             free(args[i + 1]);
-            for (int j = i; j + 2 <= *argc; j++) args[j] = args[j + 2];
+            for (int j = i; j + 2 <= *argc; j++)
+                args[j] = args[j + 2];
             *argc -= 2;
             i--;
         }
     }
 
-    if (in_fd >= 0) {
+    if (in_fd != -1) {
         dup2(in_fd, STDIN_FILENO);
         close(in_fd);
     }
-    if (out_fd >= 0) {
+
+    if (out_fd != -1) {
         dup2(out_fd, STDOUT_FILENO);
         close(out_fd);
     }
 }
+
 
 void replace_alias(char *args[], int *argc) {
     if (!args[0]) return;
