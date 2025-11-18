@@ -14,6 +14,7 @@
 #include "prompt.h"
 #include "exec.h"
 #include "signals.h"
+#include "parser.h"
 #include "linenoise.h"
 
 static void load_profile(const char *path) {
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
          strcmp(argv[1], "-v") == 0 ||
          strcmp(argv[1], "-version") == 0)) {
 
-        printf("CVX Shell beta-8.3\n");
+        printf("CVX Shell beta-8.3 rc-2\n");
         printf("Copyright (C) 2025 JHX Studio's\n");
         printf("License: Elasna Open Source License v2\n");
         return 0;
