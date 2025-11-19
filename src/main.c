@@ -131,10 +131,11 @@ int main(int argc, char *argv[]) {
     }
 
     char *line;
-    signal(SIGINT, sigint_handler);
     setenv("TERM", "xterm", 1);
 
     config();
+
+    setup_signals();
 
     const char *history_file = ".cvx_history";
     char history_path[1024];
