@@ -87,8 +87,11 @@ int exec_command(char *cmdline) {
         free_args(args, argc);
         exit(EXIT_FAILURE);
     } else {
+        child_pid = pid;
+
         int status;
-        waitpid(pid, &status, 0);
+        waitpid(pid, &status, WUNTRACED);
+        child_pid = -1;
         free_args(args, argc);
         return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
     }
@@ -146,17 +149,25 @@ int execute_pipeline(char **cmds, int n) {
             perror("exec error");
             free_args(args, argc);
             exit(EXIT_FAILURE);
-        } else if (pid < 0) { perror("fork error"); return 1; }
-
+        } else if (pid > 0) {
+            if (i == n - 1)
+                child_pid = pid;
+        } else if (pid < 0) {
+            perror("fork error");
+            return 1;
+        }
+        
         if (in_fd != 0) close(in_fd);
         if (i != n - 1) { close(pipefd[1]); in_fd = pipefd[0]; }
-        pids[i] = pid;
+        pids[i] = pid;        
     }
 
     for (int i = 0; i < n; i++) {
         int status;
-        waitpid(pids[i], &status, 0);
+        waitpid(pids[i], &status, WUNTRACED);
     }
+
+    child_pid = -1;
 
     return 0;
 }
