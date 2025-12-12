@@ -36,36 +36,65 @@ void process_command_line(char *line) {
     while (end > line && (*end == ' ' || *end == '\n')) *end-- = '\0';
     if (*line == '\0') return;
 
-    char *seq_cmds[16];
-    int seq_count = 0;
-    char *saveptr1;
-    char *part = strtok_r(line, "&&", &saveptr1);
-    while (part && seq_count < 16) {
-        while (*part == ' ') part++;
-        char *end2 = part + strlen(part) - 1;
-        while (end2 > part && *end2 == ' ') *end2-- = '\0';
-        seq_cmds[seq_count++] = part;
-        part = strtok_r(NULL, "&&", &saveptr1);
+    char *cmds[32];
+    char operators[32];
+    int count = 0;
+
+    char *p = line;
+    while (*p && count < 32) {
+        char *next = strstr(p, "&&");
+        char *next_or = strstr(p, "||");
+        char *split = NULL;
+        char op = 0;
+
+        if (next && (!next_or || next < next_or)) {
+            split = next;
+            op = 'A';
+        } else if (next_or) {
+            split = next_or;
+            op = 'O';
+        }
+
+        if (split) {
+            *split = '\0';
+            while (*p == ' ') p++;
+            char *end_cmd = split - 1;
+            while (end_cmd > p && (*end_cmd == ' ' || *end_cmd == '\n')) *end_cmd-- = '\0';
+            cmds[count] = p;
+            operators[count] = op;
+            count++;
+            p = split + 2;
+        } else {
+            while (*p == ' ') p++;
+            cmds[count] = p;
+            operators[count] = 0;
+            count++;
+            break;
+        }
     }
 
-    for (int i = 0; i < seq_count; i++) {
-        char *pipe_cmds[16];
-        int pipe_count = 0;
-        char *saveptr2;
-        char *p = strtok_r(seq_cmds[i], "|", &saveptr2);
-        while (p && pipe_count < 16) {
-            while (*p == ' ') p++;
-            char *end3 = p + strlen(p) - 1;
-            while (end3 > p && (*end3 == ' ' || *end3 == '\n')) *end3-- = '\0';
-            pipe_cmds[pipe_count++] = p;
-            p = strtok_r(NULL, "|", &saveptr2);
+    int last_status = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (i > 0) {
+            if (operators[i-1] == 'A' && last_status != 0) continue;
+            if (operators[i-1] == 'O' && last_status == 0) continue;
         }
 
-        if (pipe_count > 1) {
-            execute_pipeline(pipe_cmds, pipe_count);
-        } else if (pipe_count == 1) {
-            exec_command(pipe_cmds[0]);
+        char *pipe_cmds[16];
+        int pipe_count = 0;
+        char *saveptr;
+        char *q = strtok_r(cmds[i], "|", &saveptr);
+        while (q && pipe_count < 16) {
+            while (*q == ' ') q++;
+            char *end3 = q + strlen(q) - 1;
+            while (end3 > q && (*end3 == ' ' || *end3 == '\n')) *end3-- = '\0';
+            pipe_cmds[pipe_count++] = q;
+            q = strtok_r(NULL, "|", &saveptr);
         }
+
+        if (pipe_count > 1) last_status = execute_pipeline(pipe_cmds, pipe_count);
+        else if (pipe_count == 1) last_status = exec_command(pipe_cmds[0]);
     }
 }
 
