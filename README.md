@@ -7,7 +7,7 @@
   - `pwd` (`-L` logical, `-P` physical, `--help`)
   - `help` (shows all built-ins)
   - `ls` (auto `--color=auto`)
-  - `history` + `!!` (repeat last command)
+  - `history`
   - `echo` (supports env vars)
   - `export [VAR=value]`
   - `exit`
