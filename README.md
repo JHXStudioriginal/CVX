@@ -11,7 +11,7 @@
   - `echo` (supports env vars)
   - `export [VAR=value]`
   - `exit`
-* Command chaining with `&&`
+* Command chaining with `&&` and `||`
 * Pipelines with `|`
 * Aliases & config:
   - Custom prompt, startup dir, history toggle via `/etc/cvx.conf`
