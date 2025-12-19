@@ -9,16 +9,24 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <termios.h>
 #include "parser.h"
 #include "commands.h"
+#include "jobs.h"
 #include "config.h"
-#include "signals.h"
 #include "linenoise.h"
 
 static const char *last_cmd = NULL;
+static pid_t shell_pgid = -1;
+static pid_t fg_pgid = -1;
 
-int exec_command(char *cmdline) {
-    if (!cmdline || !*cmdline) return 0;
+int exec_command(char *cmdline, bool background) {
+    if (!cmdline || !*cmdline)
+        return 0;
+
+    if (shell_pgid == -1)
+        shell_pgid = getpgrp();
 
     char *args[64];
     int argc = split_args(cmdline, args, 64);
@@ -34,38 +42,53 @@ int exec_command(char *cmdline) {
 
     for (int i = 0; i < argc; i++) {
         if (strcmp(args[i], "!!") == 0) {
-            if (last_cmd) { free(args[i]); args[i] = strdup(last_cmd); }
-            else { printf("No command in history\n"); free_args(args, argc); return 1; }
+            if (!last_cmd) {
+                printf("No command in history\n");
+                free_args(args, argc);
+                return 1;
+            }
+            free(args[i]);
+            args[i] = strdup(last_cmd);
         }
     }
 
     linenoiseHistoryAdd(cmdline);
-    if (last_cmd) free((void*)last_cmd);
+    free((void *)last_cmd);
     last_cmd = strdup(cmdline);
 
     bool has_redirect = false;
     for (int i = 0; i < argc; i++) {
-        if (strcmp(args[i], ">") == 0 || strcmp(args[i], ">>") == 0 ||
-            strcmp(args[i], "<") == 0 || strcmp(args[i], "<<") == 0) {
+        if (!strcmp(args[i], ">") || !strcmp(args[i], ">>") ||
+            !strcmp(args[i], "<") || !strcmp(args[i], "<<")) {
             has_redirect = true;
             break;
         }
     }
 
     if (!has_redirect) {
-        if (strcmp(args[0], "cd") == 0) return cmd_cd(argc, args);
-        if (strcmp(args[0], "pwd") == 0) return cmd_pwd(argc, args);
-        if (strcmp(args[0], "export") == 0) return cmd_export(argc, args);
-        if (strcmp(args[0], "help") == 0) return cmd_help(argc, args);
-        if (strcmp(args[0], "ls") == 0) return cmd_ls(argc, args);
-        if (strcmp(args[0], "history") == 0) return cmd_history(argc, args);
-        if (strcmp(args[0], "echo") == 0) return cmd_echo(argc, args);
+        if (!strcmp(args[0], "cd")) return cmd_cd(argc, args);
+        if (!strcmp(args[0], "pwd")) return cmd_pwd(argc, args);
+        if (!strcmp(args[0], "export")) return cmd_export(argc, args);
+        if (!strcmp(args[0], "help")) return cmd_help(argc, args);
+        if (!strcmp(args[0], "ls")) return cmd_ls(argc, args);
+        if (!strcmp(args[0], "history")) return cmd_history(argc, args);
+        if (!strcmp(args[0], "echo")) return cmd_echo(argc, args);
+        if (!strcmp(args[0], "jobs")) return cmd_jobs(argc, args);
     }
 
     pid_t pid = fork();
-    if (pid < 0) { perror("fork error"); free_args(args, argc); return 1; }
+    if (pid < 0) {
+        perror("fork");
+        free_args(args, argc);
+        return 1;
+    }
 
     if (pid == 0) {
+        setpgid(0, 0);
+        
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+
         for (int i = 0; i < argc; i++) {
             char *tmp = expand_tilde(args[i]);
             free(args[i]);
@@ -73,47 +96,91 @@ int exec_command(char *cmdline) {
         }
 
         handle_redirection(args, &argc);
-
-        if (strcmp(args[0], "cd") == 0) exit(cmd_cd(argc, args));
-        if (strcmp(args[0], "pwd") == 0) exit(cmd_pwd(argc, args));
-        if (strcmp(args[0], "export") == 0) exit(cmd_export(argc, args));
-        if (strcmp(args[0], "help") == 0) exit(cmd_help(argc, args));
-        if (strcmp(args[0], "ls") == 0) exit(cmd_ls(argc, args));
-        if (strcmp(args[0], "history") == 0) exit(cmd_history(argc, args));
-        if (strcmp(args[0], "echo") == 0) exit(cmd_echo(argc, args));
-
         execvp(args[0], args);
-        perror("exec error");
-        free_args(args, argc);
-        exit(EXIT_FAILURE);
-    } else {
-        child_pid = pid;
-
-        int status;
-        waitpid(pid, &status, WUNTRACED);
-        child_pid = -1;
-        free_args(args, argc);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+        perror("exec");
+        exit(1);
     }
+
+    setpgid(pid, pid);
+
+    int status = 0;
+
+    if (background) {
+        jobs_add(pid, cmdline, JOB_RUNNING);
+        printf("[%d] %d\n", jobs_last_id(), pid);
+    
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+    } else {
+        fg_pgid = pid;
+        tcsetpgrp(STDIN_FILENO, fg_pgid);
+
+        waitpid(-fg_pgid, &status, WUNTRACED);
+
+        if (WIFSTOPPED(status) || WIFSIGNALED(status))
+            write(STDOUT_FILENO, "\n", 1);
+
+        if (WIFSTOPPED(status))
+        jobs_add(fg_pgid, cmdline, JOB_STOPPED);
+
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+        fg_pgid = -1;
+    }
+
+    free_args(args, argc);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 0;
 }
 
-int execute_pipeline(char **cmds, int n) {
+int execute_pipeline(char **cmds, int n, bool background) {
     int in_fd = 0;
     int pipefd[2];
-    pid_t pids[16];
+    pid_t pgid = -1;
+
+    if (shell_pgid == -1)
+        shell_pgid = getpgrp();
 
     for (int i = 0; i < n; i++) {
-        if (strcmp(cmds[i], "!!") == 0) {
-            if (last_cmd) { free(cmds[i]); cmds[i] = strdup(last_cmd); }
-            else { printf("No command in history\n"); return 1; }
+        if (!strcmp(cmds[i], "!!")) {
+            if (!last_cmd) {
+                printf("No command in history\n");
+                return 1;
+            }
+            free(cmds[i]);
+            cmds[i] = strdup(last_cmd);
         }
     }
 
     for (int i = 0; i < n; i++) {
-        if (i != n - 1 && pipe(pipefd) < 0) { perror("pipe error"); return 1; }
+        if (i != n - 1 && pipe(pipefd) < 0) {
+            perror("pipe");
+            return 1;
+        }
 
         pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork");
+            return 1;
+        }
+
         if (pid == 0) {
+            if (pgid == -1)
+                pgid = getpid();
+
+            setpgid(0, pgid);
+
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTSTP, SIG_DFL);
+
+            if (in_fd != 0) {
+                dup2(in_fd, STDIN_FILENO);
+                close(in_fd);
+            }
+
+            if (i != n - 1) {
+                close(pipefd[0]);
+                dup2(pipefd[1], STDOUT_FILENO);
+                close(pipefd[1]);
+            }
+
             char *args[64];
             int argc = split_args(cmds[i], args, 64);
 
@@ -132,42 +199,51 @@ int execute_pipeline(char **cmds, int n) {
                 args[j] = tmp;
             }
 
-            if (in_fd != 0) { dup2(in_fd, STDIN_FILENO); close(in_fd); }
-            if (i != n - 1) { close(pipefd[0]); dup2(pipefd[1], STDOUT_FILENO); close(pipefd[1]); }
-
             handle_redirection(args, &argc);
 
-            if (strcmp(args[0], "cd") == 0) exit(cmd_cd(argc, args));
-            if (strcmp(args[0], "pwd") == 0) exit(cmd_pwd(argc, args));
-            if (strcmp(args[0], "export") == 0) exit(cmd_export(argc, args));
-            if (strcmp(args[0], "help") == 0) exit(cmd_help(argc, args));
-            if (strcmp(args[0], "ls") == 0) exit(cmd_ls(argc, args));
-            if (strcmp(args[0], "history") == 0) exit(cmd_history(argc, args));
-            if (strcmp(args[0], "echo") == 0) exit(cmd_echo(argc, args));
-
             execvp(args[0], args);
-            perror("exec error");
-            free_args(args, argc);
-            exit(EXIT_FAILURE);
-        } else if (pid > 0) {
-            if (i == n - 1)
-                child_pid = pid;
-        } else if (pid < 0) {
-            perror("fork error");
-            return 1;
+            perror("exec");
+            exit(1);
         }
-        
-        if (in_fd != 0) close(in_fd);
-        if (i != n - 1) { close(pipefd[1]); in_fd = pipefd[0]; }
-        pids[i] = pid;        
+
+        if (pgid == -1)
+            pgid = pid;
+
+        setpgid(pid, pgid);
+
+        if (in_fd != 0)
+            close(in_fd);
+
+        if (i != n - 1) {
+            close(pipefd[1]);
+            in_fd = pipefd[0];
+        }
     }
 
-    for (int i = 0; i < n; i++) {
+    if (background) {
+        jobs_add(pgid, cmds[0], JOB_RUNNING);
+        printf("[%d] %d\n", jobs_last_id(), pgid);
+    } else {
+        fg_pgid = pgid;
+        tcsetpgrp(STDIN_FILENO, fg_pgid);
+    
         int status;
-        waitpid(pids[i], &status, WUNTRACED);
-    }
-
-    child_pid = -1;
+        pid_t wpid;
+    
+        while ((wpid = waitpid(-fg_pgid, &status, WUNTRACED)) > 0) {
+            if (WIFSTOPPED(status) || WIFSIGNALED(status)) {
+                write(STDOUT_FILENO, "\n", 1);
+            }
+    
+            if (WIFSTOPPED(status)) {
+                jobs_add(fg_pgid, cmds[0], JOB_STOPPED);
+                break;
+            }
+        }
+    
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+        fg_pgid = -1;
+    }    
 
     return 0;
 }
