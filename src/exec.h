@@ -12,7 +12,7 @@
 #include "signals.h"
 #include "linenoise.h"
 
-int exec_command(char *cmdline);
-int execute_pipeline(char **cmds, int n);
+int exec_command(char *cmdline, bool background);
+int execute_pipeline(char **cmds, int n, bool background);
 
 #endif
