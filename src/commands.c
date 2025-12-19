@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include "jobs.h"
 #include <sys/wait.h>
 #include <ctype.h>
 
@@ -220,4 +221,11 @@ int cmd_ls(int argc, char **argv) {
     if (pid < 0) { perror("fork"); return 1; }
     if (pid == 0) { execvp("ls", args); perror("execvp"); exit(EXIT_FAILURE); }
     else { int status; waitpid(pid, &status, 0); return WIFEXITED(status) ? WEXITSTATUS(status) : 1; }
+}
+
+int cmd_jobs(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
+    jobs_list();
+    return 0;
 }
