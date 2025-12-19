@@ -18,5 +18,6 @@ void jobs_remove(pid_t pgid);
 void jobs_list(void);
 pid_t jobs_get_pgid(int id);
 int jobs_last_id(void);
+void jobs_cleanup(void);
 
 #endif
