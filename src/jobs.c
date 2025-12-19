@@ -49,3 +49,21 @@ int jobs_last_id(void) {
         return 0;
     return jobs[job_count - 1].id;
 }
+
+void jobs_cleanup(void) {
+    for (int i = 0; i < job_count; ) {
+        int status;
+        pid_t pid = waitpid(-jobs[i].pgid, &status, WNOHANG);
+
+        if (pid == 0) {
+            i++;
+        } else {
+            free(jobs[i].cmd);
+
+            for (int j = i; j < job_count - 1; j++) {
+                jobs[j] = jobs[j + 1];
+            }
+            job_count--;
+        }
+    }
+}
