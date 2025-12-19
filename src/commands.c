@@ -226,6 +226,7 @@ int cmd_ls(int argc, char **argv) {
 int cmd_jobs(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    jobs_cleanup();
     jobs_list();
     return 0;
 }
