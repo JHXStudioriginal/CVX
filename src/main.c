@@ -27,7 +27,7 @@ static void load_profile(const char *path) {
 
 void process_command_line(char *line) {
     if (!line) return;
-
+    
     char *comment = strchr(line, '#');
     if (comment) *comment = '\0';
 
@@ -36,19 +36,31 @@ void process_command_line(char *line) {
     while (end > line && (*end == ' ' || *end == '\n')) *end-- = '\0';
     if (*line == '\0') return;
 
+    bool background = false;
+    int len = strlen(line);
+    if (len > 0 && line[len - 1] == '&') {
+        background = true;
+        line[len - 1] = '\0';
+
+        while (len > 1 && line[len - 2] == ' ') {
+            line[len - 2] = '\0';
+            len--;
+        }
+    }
+
     char *cmds[32];
     char operators[32];
     int count = 0;
 
     char *p = line;
     while (*p && count < 32) {
-        char *next = strstr(p, "&&");
-        char *next_or = strstr(p, "||");
+        char *next_and = strstr(p, "&&");
+        char *next_or  = strstr(p, "||");
         char *split = NULL;
         char op = 0;
 
-        if (next && (!next_or || next < next_or)) {
-            split = next;
+        if (next_and && (!next_or || next_and < next_or)) {
+            split = next_and;
             op = 'A';
         } else if (next_or) {
             split = next_or;
@@ -58,8 +70,11 @@ void process_command_line(char *line) {
         if (split) {
             *split = '\0';
             while (*p == ' ') p++;
+
             char *end_cmd = split - 1;
-            while (end_cmd > p && (*end_cmd == ' ' || *end_cmd == '\n')) *end_cmd-- = '\0';
+            while (end_cmd > p && (*end_cmd == ' ' || *end_cmd == '\n'))
+                *end_cmd-- = '\0';
+
             cmds[count] = p;
             operators[count] = op;
             count++;
@@ -77,28 +92,39 @@ void process_command_line(char *line) {
 
     for (int i = 0; i < count; i++) {
         if (i > 0) {
-            if (operators[i-1] == 'A' && last_status != 0) continue;
-            if (operators[i-1] == 'O' && last_status == 0) continue;
+            if (operators[i - 1] == 'A' && last_status != 0) continue;
+            if (operators[i - 1] == 'O' && last_status == 0) continue;
         }
 
         char *pipe_cmds[16];
         int pipe_count = 0;
         char *saveptr;
         char *q = strtok_r(cmds[i], "|", &saveptr);
+
         while (q && pipe_count < 16) {
             while (*q == ' ') q++;
             char *end3 = q + strlen(q) - 1;
-            while (end3 > q && (*end3 == ' ' || *end3 == '\n')) *end3-- = '\0';
+            while (end3 > q && (*end3 == ' ' || *end3 == '\n'))
+                *end3-- = '\0';
+
             pipe_cmds[pipe_count++] = q;
             q = strtok_r(NULL, "|", &saveptr);
         }
 
-        if (pipe_count > 1) last_status = execute_pipeline(pipe_cmds, pipe_count);
-        else if (pipe_count == 1) last_status = exec_command(pipe_cmds[0]);
+        if (pipe_count > 1)
+            last_status = execute_pipeline(pipe_cmds, pipe_count, background);
+        else if (pipe_count == 1)
+            last_status = exec_command(pipe_cmds[0], background);
     }
 }
 
 int main(int argc, char *argv[]) {
+
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+    signal(SIGINT,  SIG_IGN);
+    
     if (argc > 1 &&
         (strcmp(argv[1], "--version") == 0 ||
          strcmp(argv[1], "-v") == 0 ||
@@ -165,6 +191,10 @@ int main(int argc, char *argv[]) {
     config();
 
     setup_signals();
+
+    pid_t shell_pgid = getpid();
+    setpgid(shell_pgid, shell_pgid);
+    tcsetpgrp(STDIN_FILENO, shell_pgid);
 
     const char *history_file = ".cvx_history";
     char history_path[1024];
