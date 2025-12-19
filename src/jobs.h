@@ -1,0 +1,22 @@
+// Copyright (c) 2025 JHXStudioriginal
+// This file is part of the Elasna Open Source License v2.
+// All original author information and file headers must be preserved.
+// For full license text, see: [https://github.com/JHXStudioriginal/Elasna-Ownership-License/blob/main/LICENSE]
+
+#ifndef JOBS_H
+#define JOBS_H
+
+#include <sys/types.h>
+
+typedef enum {
+    JOB_RUNNING,
+    JOB_STOPPED
+} job_state_t;
+
+void jobs_add(pid_t pgid, const char *cmd, job_state_t state);
+void jobs_remove(pid_t pgid);
+void jobs_list(void);
+pid_t jobs_get_pgid(int id);
+int jobs_last_id(void);
+
+#endif
