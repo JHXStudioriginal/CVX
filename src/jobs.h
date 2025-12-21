@@ -19,5 +19,6 @@ void jobs_list(void);
 pid_t jobs_get_pgid(int id);
 int jobs_last_id(void);
 void jobs_cleanup(void);
+void jobs_set_state(pid_t pgid, job_state_t state);
 
 #endif
