@@ -10,6 +10,9 @@
   - `history`
   - `echo` (supports env vars)
   - `export [VAR=value]`
+  - `jobs` (list background jobs)
+  - `fg` (resume job in foreground)
+  - `bg` (resume job in background)
   - `exit`
 * Command chaining with `&&` and `||`
 * Pipelines with `|`
