@@ -74,7 +74,10 @@ int exec_command(char *cmdline, bool background) {
         if (!strcmp(args[0], "history")) return cmd_history(argc, args);
         if (!strcmp(args[0], "echo")) return cmd_echo(argc, args);
         if (!strcmp(args[0], "jobs")) return cmd_jobs(argc, args);
+        if (!strcmp(args[0], "fg")) return cmd_fg(argc, args);
+        if (!strcmp(args[0], "bg")) return cmd_bg(argc, args);
     }
+    
 
     pid_t pid = fork();
     if (pid < 0) {
