@@ -11,11 +11,23 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include "jobs.h"
+#include <signal.h>
+#include <termios.h>
 #include <sys/wait.h>
 #include <ctype.h>
 
 extern char current_dir[1024];
 char previous_dir[1024] = "";
+
+static int parse_job_id(const char *arg) {
+    if (!arg)
+        return jobs_last_id();
+
+    if (arg[0] == '%')
+        return atoi(arg + 1);
+
+    return atoi(arg);
+}
 
 static void print_with_escapes(const char *s) {
     for (int i = 0; s[i]; i++) {
@@ -192,9 +204,10 @@ int cmd_help(int argc, char **argv) {
     printf("  history [!N]   - show or repeat command history\n");
     printf("  echo [args]    - print arguments (supports escapes)\n");
     printf("  export [VAR=value] - set or show environment variable\n");
-    printf("  !!             - repeat last command\n");
+    printf("  jobs           - list background and stopped jobs\n");
     printf("  && and |       - command chaining and pipelines\n");
     printf("  # [comment]    - inline comments\n");
+    printf("  command &      - run command in background\n\n");
     printf("  cvx --version, cvx -version, cvx -v  - show shell version\n");
     printf("  help, cvx --help, cvx -help, cvx -h - show this help message\n\n");
     printf("External commands can be executed as usual.\n");
@@ -228,5 +241,48 @@ int cmd_jobs(int argc, char **argv) {
     (void)argv;
     jobs_cleanup();
     jobs_list();
+    return 0;
+}
+
+
+int cmd_fg(int argc, char **argv) {
+    int id = parse_job_id(argc >= 2 ? argv[1] : NULL);
+
+    pid_t pgid = jobs_get_pgid(id);
+    if (pgid <= 0) {
+        fprintf(stderr, "fg: no such job: %d\n", id);
+        return 1;
+    }
+
+    tcsetpgrp(STDIN_FILENO, pgid);
+    kill(-pgid, SIGCONT);
+    jobs_set_state(pgid, JOB_RUNNING);
+
+    int status;
+    waitpid(-pgid, &status, WUNTRACED);
+
+    tcsetpgrp(STDIN_FILENO, getpgrp());
+
+    if (WIFSTOPPED(status))
+        jobs_set_state(pgid, JOB_STOPPED);
+    else
+        jobs_cleanup();
+
+    return 0;
+}
+
+
+int cmd_bg(int argc, char **argv) {
+    int id = parse_job_id(argc >= 2 ? argv[1] : NULL);
+
+    pid_t pgid = jobs_get_pgid(id);
+    if (pgid <= 0) {
+        fprintf(stderr, "bg: no such job: %d\n", id);
+        return 1;
+    }
+
+    kill(-pgid, SIGCONT);
+    jobs_set_state(pgid, JOB_RUNNING);
+
     return 0;
 }
