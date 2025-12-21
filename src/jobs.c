@@ -68,3 +68,20 @@ void jobs_cleanup(void) {
         }
     }
 }
+
+pid_t jobs_get_pgid(int id) {
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].id == id)
+            return jobs[i].pgid;
+    }
+    return -1;
+}
+
+void jobs_set_state(pid_t pgid, job_state_t state) {
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].pgid == pgid) {
+            jobs[i].state = state;
+            return;
+        }
+    }
+}
