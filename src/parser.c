@@ -280,3 +280,24 @@ void unescape_args(char *args[], int argc) {
         args[i] = tmp;
     }
 }
+
+void process_command_line(char *line) {
+    if (!line) return;
+
+    char *saveptr = NULL;
+    char *cmd = strtok_r(line, ";", &saveptr);
+
+    while (cmd) {
+        while (*cmd == ' ' || *cmd == '\t') cmd++;
+
+        char *end = cmd + strlen(cmd) - 1;
+        while (end > cmd && (*end == ' ' || *end == '\n'))
+            *end-- = '\0';
+
+        if (*cmd != '\0') {
+            process_single_command(cmd);
+        }
+
+        cmd = strtok_r(NULL, ";", &saveptr);
+    }
+}
