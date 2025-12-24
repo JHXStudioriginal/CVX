@@ -40,18 +40,6 @@ int exec_command(char *cmdline, bool background) {
         args[i] = tmp;
     }
 
-    for (int i = 0; i < argc; i++) {
-        if (strcmp(args[i], "!!") == 0) {
-            if (!last_cmd) {
-                printf("No command in history\n");
-                free_args(args, argc);
-                return 1;
-            }
-            free(args[i]);
-            args[i] = strdup(last_cmd);
-        }
-    }
-
     linenoiseHistoryAdd(cmdline);
     free((void *)last_cmd);
     last_cmd = strdup(cmdline);
@@ -140,17 +128,6 @@ int execute_pipeline(char **cmds, int n, bool background) {
 
     if (shell_pgid == -1)
         shell_pgid = getpgrp();
-
-    for (int i = 0; i < n; i++) {
-        if (!strcmp(cmds[i], "!!")) {
-            if (!last_cmd) {
-                printf("No command in history\n");
-                return 1;
-            }
-            free(cmds[i]);
-            cmds[i] = strdup(last_cmd);
-        }
-    }
 
     for (int i = 0; i < n; i++) {
         if (i != n - 1 && pipe(pipefd) < 0) {
