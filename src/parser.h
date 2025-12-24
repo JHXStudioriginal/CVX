@@ -15,5 +15,7 @@ char* expand_tilde(const char *path);
 char* expand_variables(const char *input);
 void replace_alias(char *args[], int *argc);
 void handle_redirection(char *args[], int *argc);
+void process_single_command(char *line);
+void process_command_line(char *line);
 
 #endif
