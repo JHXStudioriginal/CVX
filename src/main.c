@@ -17,6 +17,8 @@
 #include "parser.h"
 #include "linenoise.h"
 
+static char *last_command = NULL;
+
 static void load_profile(const char *path) {
     if (access(path, R_OK) == 0) {
         char cmd[1024];
@@ -25,9 +27,9 @@ static void load_profile(const char *path) {
     }
 }
 
-void process_command_line(char *line) {
+void process_single_command(char *line) {
     if (!line) return;
-    
+
     char *comment = strchr(line, '#');
     if (comment) *comment = '\0';
 
@@ -207,24 +209,50 @@ int main(int argc, char *argv[]) {
     while (1) {
         const char *prompt = get_prompt();
         line = linenoise(prompt);
-        if (line == NULL) break;
-
+        if (line == NULL)
+            break;
+    
+        bool expanded = false;
+    
+        if (strcmp(line, "!!") == 0) {
+            if (!last_command) {
+                printf("cvx: no history\n");
+                free(line);
+                continue;
+            }
+    
+            free(line);
+            line = strdup(last_command);
+            expanded = true;
+            printf("%s\n", line);
+        }
+    
         line[strcspn(line, "\n")] = 0;
-
+    
         if (strcmp(line, "exit") == 0) {
             free(line);
             break;
         }
-
-        if (line[0] != '\0' && history_enabled) {
+    
+        if (line[0] != '\0' && history_enabled && !expanded) {
             linenoiseHistoryAdd(line);
             linenoiseHistorySave(history_path);
         }
-
+    
+        char *original_line = NULL;
+        if (line[0] != '\0' && !expanded) {
+            original_line = strdup(line);
+        }
+    
         process_command_line(line);
-
+    
+        if (original_line) {
+            free(last_command);
+            last_command = original_line;
+        }
+    
         free(line);
     }
-
+    
     return 0;
-}
+}    
