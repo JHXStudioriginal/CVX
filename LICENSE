@@ -1,23 +1,38 @@
-Elasna Open Source License v2
+Elasna Open Source License v3
+Copyright 2025 JHXStudioriginal
 
-Copyright (c) [2025] [JHXStudioriginal]
+Permission is granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files to use, modify, and distribute the software under
+the following conditions:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, subject to the following conditions:
+1. Preservation of Authors and Headers
+All original author information, copyright notices, and file headers must be preserved
+intact in all copies, forks, modifications, and redistributions of the software.
 
-All original author information and file headers must be preserved intact.
+2. Mandatory Public Source Code
+Any project, software, service, or product that uses, includes, links to, incorporates,
+or is based on the software whether modified or unmodified must make its complete
+source code publicly available, free of charge, under the terms of this license.
+Closed-source use is prohibited.
 
-All copies or distributions of the Software must include a link to the original project
+3. Same-License Requirement
+All copies, modifications, forks, derivative works, and larger works that include
+any portion of the software must be released under this same license.
+No additional restrictions, proprietary sublicenses, or dual-licensed redistributions are allowed.
 
-The license text in this file must be included in all copies or substantial portions of the Software.
+4. Required Link to the Original Project
+All public distributions must clearly include a link to the original software repository.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+5. License Inclusion
+This license text must be included verbatim in all copies and substantial portions
+of the software and any derivative works.
+
+6. Loss of Rights Upon Violation
+Any violation of these terms results in the automatic termination of all rights
+granted by this license. Upon termination any further use, distribution, or modification
+of the software becomes unauthorized and constitutes copyright infringement.
+
+7. No Warranty
+The software is provided "as is" without warranty of any kind. In no event shall
+the authors be liable for any claim, damages, or other liability arising from
+the use of the software.
