@@ -47,4 +47,4 @@ Using Git + Make
 
 ---------------------------------------------------------------------------------------------------------------------------------------------
 
-###### CVX Shell is under the [Elasna Open Source License v2](https://github.com/JHXStudioriginal/Elasna-License/blob/main/LICENSE), but includes [linenoise](https://github.com/antirez/linenoise) by [antirez](https://github.com/antirez), which is licensed under the BSD 2-Clause License. See relevant files for details.
+###### CVX Shell is under the [Elasna Open Source License V3](https://github.com/JHXStudioriginal/Elasna-License/blob/main/LICENSE), but includes [linenoise](https://github.com/antirez/linenoise) by [antirez](https://github.com/antirez), which is licensed under the BSD 2-Clause License. See relevant files for details.
